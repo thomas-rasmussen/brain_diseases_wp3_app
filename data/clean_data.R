@@ -5,7 +5,7 @@ library(here)
 library(readr)
 library(stringr)
 
-version_id <- "v1_2025-01-15"
+version_id <- "v2_2025-02-17"
 
 
 #### Import data ####
@@ -81,8 +81,8 @@ agegroup_labels <- tibble(
 )
 
 closest_relative_type_labels <- tibble(
-  closest_relative_type = c("child", "father", "mother", "sibling", "parent", "partner"),
-  closest_relative_type_label = c("Child", "Father", "Mother", "Sibling", "Parent", "Partner")
+  closest_relative_type = c("mother", "father", "relative"),
+  closest_relative_type_label = c("Mother", "Father", "Closest relative")
 )
 
 #### Add variables to data ####

@@ -2,7 +2,23 @@
 # Load data
 codelist <- readRDS(here("data", "codelist.rds"))
 patient_characteristics <- readRDS(here("data", "patient_characteristics.rds"))
-cost_results <- readRDS(here("data", "cost_results.rds"))
+cost_results <- readRDS(here("data", "cost_results.rds")) %>%
+  group_by(
+    var_pop, population, population_label, var_name, var_name_label,
+    cost_component, cost_component_label
+  ) %>%
+  summarize(
+    act_cost = sum(act_cost),
+    att_cost = sum(att_cost),
+    act_py = sum(act_py),
+    att_py = sum(att_py),
+    .groups = "keep"
+  ) %>%
+  ungroup() %>%
+  mutate(
+    act_cost_py = act_cost / act_py,
+    att_cost_py = att_cost / att_py
+  )
 
 var_names_as_list <- codelist %>%
   filter(group == "bd_def") %>%
@@ -158,20 +174,23 @@ function(input, output, session) {
         )
       ) %>%
       mutate(
+        act_cost_mil_eur = act_cost / (eur_dkk_rate * 10**6),
+        act_cost_py_eur = act_cost_py / eur_dkk_rate,
         att_cost_mil_eur = att_cost / (eur_dkk_rate * 10**6),
         att_cost_py_eur = att_cost_py / eur_dkk_rate
       ) %>%
       select(
         population_label, var_name_label,
-        agegroup_label, closest_relative_type_label, cost_component_label,
+        cost_component_label,
+        act_cost_mil_eur, act_cost_py_eur,
         att_cost_mil_eur, att_cost_py_eur
       ) %>%
       rename(
         "Population" = population_label,
         "Brain disease" = var_name_label,
-        "Agegroup" = agegroup_label,
-        "Closest relative type" = closest_relative_type_label,
         "Cost component" = cost_component_label,
+        "Total actual costs (million EUR)" = act_cost_mil_eur,
+        "Actual cost per person (EUR)" = act_cost_py_eur,
         "Total attributable costs (million EUR)" = att_cost_mil_eur,
         "Attributable cost per person (EUR)" = att_cost_py_eur
       )

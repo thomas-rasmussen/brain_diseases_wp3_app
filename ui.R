@@ -65,22 +65,22 @@ page_navbar(
   #### Cost analyses ####
   nav_panel(title = "Cost analyses",
     navset_tab(
-      # nav_panel(title = "Attributable costs - Total",
-      #   layout_sidebar(
-      #     sidebar = sidebar(
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_att_total_population_id",
-      #         label = "Population",
-      #         choices = list(
-      #           "Incident cohort 2016-2021" = "inc_2016_2021",
-      #           "Prevalent cohort 2021" = "prev_2021"
-      #         )
-      #       )
-      #     ),
-      #     withSpinner(plotOutput("cost_analyses_plot_att_total", height = "600px", width = "1000px"))
-      #   )
-      # ),
-      nav_panel(title = "Attributable costs - Per person"),
+      nav_panel(title = "Attributable costs - Total",
+        layout_sidebar(
+          sidebar = sidebar(
+            selectInput(
+              inputId = "cost_analyses_plot_att_total_population_id",
+              label = "Population",
+              choices = list(
+                "Incident cohort 2016-2021" = "inc_2016_2021",
+                "Prevalent cohort 2021" = "prev_2021"
+              )
+            )
+          ),
+          withSpinner(plotOutput("cost_analyses_plot_att_total", height = "600px", width = "1000px"))
+        )
+      ),
+      # nav_panel(title = "Attributable costs - Per person"),
       nav_panel(title = "Data in table format",
         layout_sidebar(
           sidebar = sidebar(
