@@ -4,8 +4,8 @@ codelist <- readRDS(here("data", "codelist.rds"))
 patient_characteristics <- readRDS(here("data", "patient_characteristics.rds"))
 cost_results <- readRDS(here("data", "cost_results.rds")) %>%
   group_by(
-    var_pop, population, population_label, var_name, var_name_label,
-    cost_component, cost_component_label
+    var_pop, population, population_label, agegroup, agegroup_label,
+    var_name, var_name_label, cost_component, cost_component_label
   ) %>%
   summarize(
     act_cost = sum(act_cost),
@@ -180,7 +180,7 @@ function(input, output, session) {
         att_cost_py_eur = att_cost_py / eur_dkk_rate
       ) %>%
       select(
-        population_label, var_name_label,
+        population_label, var_name_label, agegroup_label,
         cost_component_label,
         act_cost_mil_eur, act_cost_py_eur,
         att_cost_mil_eur, att_cost_py_eur
@@ -188,6 +188,7 @@ function(input, output, session) {
       rename(
         "Population" = population_label,
         "Brain disease" = var_name_label,
+        "Agegroup" = agegroup_label,
         "Cost component" = cost_component_label,
         "Total actual costs (million EUR)" = act_cost_mil_eur,
         "Actual cost per person (EUR)" = act_cost_py_eur,
@@ -196,50 +197,109 @@ function(input, output, session) {
       )
   )
   
-  #### output$cost_analyses_plot_att_total ####
-  output$cost_analyses_plot_att_total <- renderPlot({
-    plot_dat <- cost_results %>%
-      filter(
-        population == input$cost_analyses_plot_att_total_population_id
-        & var_name != "bd_00"
-        & cost_component != "lost_production_sickness"
-      ) %>%
-      mutate(att_cost_mil_eur = att_cost / (eur_dkk_rate * 10**6)) 
+  #### output$cost_analyses_plot ####
+  output$cost_analyses_plot <- renderPlot({
+
+    cost_type <- input$cost_analyses_plot_type
     
-    plot_dat %>%
-      ggplot(aes(x = att_cost_mil_eur, y = var_name_label, fill = cost_component_label)) +
-      geom_bar(position = "stack", stat = "identity") +    
-      theme_bw() +
-      scale_x_continuous(
-        expand = expansion(mult = 0.01, add = 0),
-        labels = function(x) formatC(abs(x), format = "f", big.mark = ",", digits = 1)
-      ) +
-      scale_y_discrete(expand = c(0, 0)) +
-      # cvd-friendly qualitative color palette from "Fundamentals of Data
-      # Visualization" figure 19.10
-      scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                                   "#0072B2", "#D55E00")) +
-      labs(
-        title = "test title",
-        subtitle = "Test subtitle",
-        x = "Cost in million EUR"
-      ) +
-      theme(legend.position = "bottom",
-            panel.grid.major.y = element_blank(),
-            axis.title.y = element_blank(),
-            axis.title.x = element_text(size = 14),
-            axis.text = element_text(size = 12, colour = "black"),
-            axis.text.y = element_text(hjust = 0.5, vjust = 0.5),
-            axis.ticks.y = element_blank(),
-            axis.line.x.bottom = element_line(colour = "black"),
-            panel.border = element_blank(),
-            legend.title = element_blank(),
-            legend.direction = "vertical",
-            plot.title = element_text(size = 20),
-            plot.subtitle = element_text(size = 18)
-      ) +
-      guides(fill = guide_legend(nrow = 2, reverse = TRUE, byrow = TRUE))
-  
+    cost_data <- cost_results %>%
+      filter(
+        population == input$cost_analyses_plot_population_id
+        & var_name != "bd_00"
+      )
+    
+    cost_data$cost_var <- cost_data[[cost_type]]
+
+    if (cost_type %in% c("act_cost", "att_cost")) {
+      labs_x <- "Cost in million EUR"
+      convert_factor <- eur_dkk_rate * 10**6
+    } else if (cost_type %in% c("act_cost_py", "att_cost_py")) {
+      labs_x <- "Cost in EUR"
+      convert_factor <- eur_dkk_rate
+    }
+    
+    cost_data <- cost_data %>%
+      mutate(cost_var = cost_var / {{ convert_factor }})
+
+    # Look at total costs for each brain disease to determine y axis ordering
+    var_name_ordering <- cost_data %>%
+      select(var_name_label, cost_var) %>%
+      group_by(var_name_label) %>%
+      summarize(total_cost = sum(cost_var)) %>%
+      arrange(total_cost)
+    
+    cost_data <- cost_data %>%
+      mutate(
+        var_name_label = factor(
+          var_name_label,
+          levels = var_name_ordering$var_name_label
+        )
+      )
+    
+    
+    age0_24_right <- cost_data %>%
+      filter(agegroup == "0-24" & cost_component != "lost_production_sickness") %>%
+      make_costs_barplot(y_axis_labels = TRUE)
+    
+    age0_24_left <- cost_data %>%
+      filter(agegroup == "0-24" & cost_component == "lost_production_sickness") %>%
+      make_costs_barplot(y_axis_labels = FALSE, flip_plot = TRUE)
+    
+    age25_64_right <- cost_data %>%
+      filter(agegroup == "25-64" & cost_component != "lost_production_sickness") %>%
+      make_costs_barplot(y_axis_labels = TRUE)
+    
+    age25_64_left <- cost_data %>%
+      filter(agegroup == "25-64" & cost_component == "lost_production_sickness") %>%
+      make_costs_barplot(y_axis_labels = FALSE, flip_plot = TRUE)
+    
+    age65p_right <- cost_data %>%
+      filter(agegroup == "65+" & cost_component != "lost_production_sickness") %>%
+      make_costs_barplot(
+        labs_x = {{ labs_x }},
+        y_axis_labels = TRUE,
+        include_legend = TRUE
+      )
+    
+    age65p_left <- cost_data %>%
+      filter(agegroup == "65+" & cost_component == "lost_production_sickness") %>%
+      make_costs_barplot(
+        labs_x = {{ labs_x }},
+        y_axis_labels = FALSE,
+        include_legend = TRUE,
+        flip_plot = TRUE
+      )
+    
+    if (cost_type %in% c("att_cost", "att_cost_py")) {
+      tmp1 <- age0_24_left + age0_24_right + plot_annotation(
+        title = "Agegroup 0-24"
+      )
+      
+      tmp2 <- age25_64_left + age25_64_right + plot_annotation(
+        title = "Agegroup 25-64"
+      )
+      
+      tmp3 <- age65p_left + age65p_right + plot_annotation(
+        title = "Agegroup 65+"
+      )
+    } else if (cost_type %in% c("act_cost", "act_cost_py")) {
+      tmp1 <- age0_24_right + plot_annotation(
+        title = "Agegroup 0-24"
+      )
+      
+      tmp2 <- age25_64_right + plot_annotation(
+        title = "Agegroup 25-64"
+      )
+      
+      tmp3 <- age65p_right + plot_annotation(
+        title = "Agegroup 65+"
+      )
+    }
+    
+    # Use wrap_elements() to preseve plot annotations
+    wrap_elements(tmp1) / wrap_elements(tmp2) / wrap_elements(tmp3)
+
+
   })
   
 }
