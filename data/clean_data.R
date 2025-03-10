@@ -5,7 +5,7 @@ library(here)
 library(readr)
 library(stringr)
 
-version_id <- "v2_2025-02-17"
+version_id <- "v3_2025-02-20"
 
 
 #### Import data ####
@@ -16,6 +16,8 @@ cost_results <- read_delim(
   col_types = list(
     .default = "d",
     "cost_component" = "c",
+    "cost_period" = "c",
+    "same_education_req" = "c",
     "var_pop" = "c",
     "closest_relative_type" = "c",
     "agegroup" = "c"
@@ -80,22 +82,34 @@ agegroup_labels <- tibble(
   agegroup_label = c("Children and young people (0-24 years)", "Young adults and adults (25-64 years)", "Older people (65+ years)")
 )
 
-closest_relative_type_labels <- tibble(
-  closest_relative_type = c("mother", "father", "relative"),
-  closest_relative_type_label = c("Mother", "Father", "Closest relative")
+cost_period_labels <- tibble(
+  cost_period = c("before_index", "after_index"),
+  cost_period_label = c("Before index date", "After index date")
+)
+
+same_education_req_labels <- tibble(
+  same_education_req = c("no", "yes"),
+  same_education_req_label = c("No", "Yes")
 )
 
 #### Add variables to data ####
 cost_results <- cost_results %>%
   mutate(
     var_name = word(var_pop, 1, sep = "#"),
-    population = word(var_pop, 2, sep = "#")
+    population = word(var_pop, 2, sep = "#"),
+    closest_relative_type_label = case_match(
+      closest_relative_type,
+      "father" ~ "Father",
+      "mother" ~ "Mother",
+      "closest_rel" ~ "Closest relative"
+    )
   ) %>%
   left_join(cost_component_labels, by = "cost_component") %>%
   left_join(var_name_labels, by = "var_name") %>%
   left_join(population_labels, by = "population") %>%
   left_join(agegroup_labels, by = "agegroup") %>%
-  left_join(closest_relative_type_labels, by = "closest_relative_type")
+  left_join(same_education_req_labels, by = "same_education_req") %>%
+  left_join(cost_period_labels, by = "cost_period")
 
 
 dkk_to_eur <- codelist %>%
@@ -120,8 +134,14 @@ patient_characteristics <- patient_characteristics %>%
   left_join(var_name_labels, by = "var_name") %>%
   left_join(population_labels, by = "population") %>%
   left_join(agegroup_labels, by = "agegroup") %>%
-  left_join(closest_relative_type_labels, by = "closest_relative_type") %>%
+  left_join(same_education_req_labels, by = "same_education_req") %>%
   mutate(
+    closest_relative_group_label = case_match(
+      closest_relative_group,
+      "father" ~ "Father",
+      "mother" ~ "Mother",
+      "closest_relative" ~ "Closest relative"
+    ),
     label_order = case_match(
       label,
       "__n" ~ 1,
@@ -130,7 +150,19 @@ patient_characteristics <- patient_characteristics %>%
       "cci_g: title" ~ 4,
       "cci_g: 0" ~ 5,
       "cci_g: 1-2" ~ 6,
-      "cci_g: +3" ~ 7
+      "cci_g: +3" ~ 7,
+      "education_level: title" ~ 10,
+      "education_level: no_education" ~ 11,
+      "education_level: short_education" ~ 12,
+      "education_level: medium_education" ~ 13,
+      "education_level: long_education" ~ 14,
+      "closest_relative_type: title" ~ 20,
+      "closest_relative_type: mother" ~ 21,
+      "closest_relative_type: father" ~ 22,
+      "closest_relative_type: partner" ~ 23,
+      "closest_relative_type: parent" ~ 24,
+      "closest_relative_type: child" ~ 25,
+      "closest_relative_type: sibling" ~ 26
     )
   ) 
   
@@ -138,6 +170,10 @@ patient_characteristics <- patient_characteristics %>%
 #### Reorder variables and sort data ####
 cost_results <- cost_results %>%
   relocate(
+    cost_period,
+    cost_period_label,
+    same_education_req,
+    same_education_req_label,
     var_pop,
     population,
     population_label,
@@ -156,10 +192,15 @@ cost_results <- cost_results %>%
     act_cost_py,
     att_cost_py
   ) %>%
-  arrange(var_pop, var_name, agegroup, closest_relative_type, cost_component)
+  arrange(
+    cost_period, same_education_req, var_pop, var_name, agegroup,
+    closest_relative_type, cost_component
+  )
 
 patient_characteristics <- patient_characteristics %>%
   relocate(
+    same_education_req,
+    same_education_req_label,
     var_pop,
     population,
     population_label,
@@ -167,8 +208,9 @@ patient_characteristics <- patient_characteristics %>%
     var_name_label,
     agegroup,
     agegroup_label,
-    closest_relative_type,
-    closest_relative_type_label,
+    closest_relative_group,
+    closest_relative_group_label,
+    relative_group,
     var,
     label,
     stat_char,
@@ -176,7 +218,10 @@ patient_characteristics <- patient_characteristics %>%
     stat_num2,
     stat_num3
   ) %>%
-  arrange(var_pop, var_name, agegroup, closest_relative_type, label_order)
+  arrange(
+    same_education_req, var_pop, var_name, agegroup,
+    closest_relative_group, relative_group, label_order
+  )
 
 
 

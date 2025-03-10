@@ -38,10 +38,14 @@ page_navbar(
       nav_panel(title = "Charlson Comorbidity Index",
         htmlOutput("definitions_details_cci"),
         withSpinner(tableOutput("definitions_table_cci"))
+      ),
+      nav_panel(title = "Education level",
+        htmlOutput("definitions_details_education"),
+        withSpinner(tableOutput("definitions_table_education"))
       )
     )
   ),
-  #### Patient characteristics ####
+  ### Patient characteristics ####
   nav_panel(title = "Patient characteristics",
     layout_sidebar(
       sidebar = sidebar(
@@ -56,6 +60,14 @@ page_navbar(
           choices = list(
             "Incident cohort 2016-2021" = "inc_2016_2021",
             "Prevalent cohort 2021" = "prev_2021"
+          )
+        ),
+        selectInput(
+          inputId = "patient_characteristics_same_education_req_id",
+          label = "Relatives are additionally required to have the same level of education",
+          choices = list(
+            "No" = "no",
+            "Yes" = "yes"
           )
         )
       ),
@@ -85,9 +97,34 @@ page_navbar(
                 "Attributable costs - Total" = "att_cost",
                 "Attributable costs - Per person" = "att_cost_py"
               )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_same_education_req_id",
+              label = "Relatives are additionally required to have the same level of education",
+              choices = list(
+                "No" = "no",
+                "Yes" = "yes"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_agegroup_id",
+              label = "Agegroup",
+              choices = c(
+                "0-24" = "0-24",
+                "25-64" = "25-64",
+                "65+" = "65+"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_cost_period_id",
+              label = "Cost period",
+              choices = c(
+                "Year after index date" = "after_index",
+                "Year before index date" = "before_index"
+              )
             )
           ),
-          withSpinner(plotOutput("cost_analyses_plot", height = "1200px", width = "1200px"))
+          withSpinner(plotOutput("cost_analyses_plot", height = "600px", width = "900px"))
         )
       ),
       nav_panel(title = "Data in table format",
@@ -105,6 +142,22 @@ page_navbar(
                 "All populations" = "all",
                 "Incident cohort 2016-2021" = "inc_2016_2021",
                 "Prevalent cohort 2021" = "prev_2021"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_table_same_education_req_id",
+              label = "Relatives are additionally required to have the same level of education",
+              choices = list(
+                "No" = "no",
+                "Yes" = "yes"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_table_cost_period_id",
+              label = "Cost period",
+              choices = c(
+                "Year before index date" = "before_index",
+                "Year after index date" = "after_index"
               )
             )
           ),
