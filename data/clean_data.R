@@ -56,13 +56,27 @@ cost_component_labels <- cost_results %>%
     cost_component_label = case_match(
       cost_component,
       "secondary_sector" ~ "Hospital care",
-      "home_care" ~ "Home care",
       "filled_prescriptions" ~ "Filled prescriptions",
       "primary_sector" ~ "Primary sector",
       "lost_production_sickness" ~ "Lost productivity (income loss)",
       .default  = cost_component
-    )
+    ),
+    cost_component_f = factor(
+      cost_component,
+      levels = c("primary_sector",
+                 "secondary_sector",
+                 "filled_prescriptions",
+                 "lost_production_sickness"
+                ),
+      labels = c("Primary sector",
+                 "Hospital care",
+                 "Filled prescriptions",
+                 "Lost productivity (income loss)"
+                )
+                
+      )
   )
+
 
 population_labels <- codelist %>%
   filter(group == "population_def") %>%

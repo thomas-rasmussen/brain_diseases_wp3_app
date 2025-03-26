@@ -26,7 +26,7 @@ var_names_as_list <- setNames(
 )
 
 page_navbar(
-  title = "Version v0.0.1",
+  title = "Version 0.0.2",
   theme = bs_theme(bootswatch = "lumen"),
   #### Main page ####
   nav_panel(title = "Main",
@@ -96,8 +96,8 @@ page_navbar(
   ),
   #### Cost analyses ####
   nav_panel(title = "Cost analyses",
-    # navset_tab(
-    #   nav_panel(title = "Tables",
+    navset_tab(
+      nav_panel(title = "Tables",
         layout_sidebar(
           sidebar = sidebar(
             selectInput(
@@ -140,57 +140,62 @@ page_navbar(
           ),
           withSpinner(gt_output("cost_analyses_table"))
         )
-      # ),
-      # nav_panel(title = "Plots",
-      #   layout_sidebar(
-      #     sidebar = sidebar(
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_population_id",
-      #         label = "Population",
-      #         choices = list(
-      #           "Prevalent cohort 2021" = "prev_2021",
-      #           "Incident cohort 2016-2021" = "inc_2016_2021"
-      #         )
-      #       ),
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_type",
-      #         label = "Cost analysis",
-      #         choices = list(
-      #           "Actual costs - Total" = "act_cost",
-      #           "Actual costs - Per person" = "act_cost_py",
-      #           "Attributable costs - Total" = "att_cost",
-      #           "Attributable costs - Per person" = "att_cost_py"
-      #         )
-      #       ),
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_same_education_req_id",
-      #         label = "Comparison relatives are additionally required to have the same level of education as the closest relative of the associated brain disorder patient",
-      #         choices = list(
-      #           "Yes" = "yes",
-      #           "No" = "no"
-      #         )
-      #       ),
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_pool_relative_types_id",
-      #         label = "Pool results for relative types for index patients aged 25 and older",
-      #         choices = list(
-      #           "Yes" = "yes",
-      #           "No" = "no"
-      #         )
-      #       ),
-      #       selectInput(
-      #         inputId = "cost_analyses_plot_cost_period_id",
-      #         label = "Cost period",
-      #         choices = c(
-      #           "Year after index date" = "after_index",
-      #           "Year before index date" = "before_index"
-      #         )
-      #       )
-      #     ),
-      #     withSpinner(plotOutput("cost_analyses_plot", inline = TRUE))
-      #   )
-      # )
-    # )
+      ),
+      nav_panel(title = "Plots",
+        layout_sidebar(
+          sidebar = sidebar(
+            selectInput(
+              inputId = "cost_analyses_plot_var_name_id",
+              label = "Brain disorder",
+              choices = var_names_as_list
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_population_id",
+              label = "Population",
+              choices = list(
+                "Prevalent cohort 2021" = "prev_2021",
+                "Incident cohort 2016-2021" = "inc_2016_2021"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_cost_type",
+              label = "Cost analysis",
+              choices = list(
+                "Attributable costs - Total" = "att_cost",
+                "Attributable costs - Per person" = "att_cost_py",
+                "Actual costs - Total" = "act_cost",
+                "Actual costs - Per person" = "act_cost_py"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_same_education_req_id",
+              label = "Comparison relatives are additionally required to have the same level of education as the closest relative of the associated brain disorder patient",
+              choices = list(
+                "Yes" = "yes",
+                "No" = "no"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_pool_relative_types_id",
+              label = "Pool results for relative types for index patients aged 25 and older",
+              choices = list(
+                "No" = "no",
+                "Yes" = "yes"
+              )
+            ),
+            selectInput(
+              inputId = "cost_analyses_plot_cost_period_id",
+              label = "Cost period",
+              choices = c(
+                "Year after index date" = "after_index",
+                "Year before index date" = "before_index"
+              )
+            )
+          ),
+          withSpinner(plotOutput("cost_analyses_plot", height = "600px", width = "50%"))
+        )
+      )
+    )
   ),
   #### Links ####
   nav_spacer(),

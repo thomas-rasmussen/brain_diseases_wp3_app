@@ -23,6 +23,9 @@ eur_dkk_rate <- codelist %>%
   as.numeric()
 
 
+# Load helper functions
+source("helpers.R")
+
 function(input, output, session) {
     
   #### output$main_info ####
@@ -114,7 +117,7 @@ function(input, output, session) {
         code_type = case_match(
           code_type,
           "icd10" ~ "ICD-10",
-          "icd8" ~ "ICD-8",
+          "icd8" ~ "ICD-8"
         )
       ) %>%
       rename(
@@ -413,8 +416,9 @@ function(input, output, session) {
     
     tbl_dat <- tbl_dat %>%
       select(-c(
-        cost_period, cost_period_label, same_education_req,
-        same_education_req_label, var_pop, cost_component_order
+        cost_period, cost_period_label,
+        same_education_req_label, var_pop, cost_component_order,
+        cost_component_f
       ))
     
     # Prepare data for table
@@ -426,6 +430,20 @@ function(input, output, session) {
         att_cost_py_eur = att_cost_py / eur_dkk_rate
       )
     
+    # Find number of patients in each agegroup/closest_relative_type strata
+    tbl_dat <- tbl_dat %>%
+      left_join(
+        patient_characteristics %>%
+          filter(case_relative == 1 & var == "__n") %>%
+          select("same_education_req", "population", "var_name",
+                 "agegroup", "closest_relative_type", "stat_num1"),
+        by = c("same_education_req", "population", "var_name",
+               "agegroup", "closest_relative_type")
+      ) %>%
+      rename(n_cases_strata = stat_num1) %>%
+      mutate(n_cases_strata = formatC(as.integer(n_cases_strata), digits = 0, format = "d", big.mark = ",")) %>%
+      select(-same_education_req)
+    
     tbl_dat <- tbl_dat %>%
         group_by(agegroup_label) %>%
         mutate(agegroup_first_row = row_number() == 1L) %>%
@@ -434,8 +452,11 @@ function(input, output, session) {
         ungroup() %>%
         mutate(
           agegroup_label = ifelse(agegroup_first_row, agegroup_label, ""),
-          closest_relative_type_label = ifelse(closest_relative_first_row, closest_relative_type_label, "")
+          closest_relative_type_label = ifelse(closest_relative_first_row, closest_relative_type_label, ""),
+          n_cases_strata = ifelse(closest_relative_first_row, n_cases_strata, "")
         )
+    
+
     
     if (input$cost_analyses_table_cost_period_id == "before_index") {
       tbl_title_p1 <- "Cost of illness in the year prior to index date"
@@ -457,8 +478,9 @@ function(input, output, session) {
     
     tbl_dat <- tbl_dat %>%
       relocate(
-        agegroup_label, closest_relative_type_label, cost_component_label,
-        act_cost_mil_eur, act_cost_py_eur, att_cost_mil_eur, att_cost_py_eur
+        agegroup_label, closest_relative_type_label, n_cases_strata,
+        cost_component_label, act_cost_mil_eur, act_cost_py_eur,
+        att_cost_mil_eur, att_cost_py_eur
       ) %>%
       gt() %>%
       tab_header(
@@ -476,6 +498,7 @@ function(input, output, session) {
       cols_label(
         agegroup_label = md("**Age strata of index patients**"),
         closest_relative_type_label = md("**Closest relative type**"),
+        n_cases_strata = md("**Number of index patients**"),
         cost_component_label = md("**Cost component**"),
         act_cost_mil_eur = md("**Total (million EUR)**"),
         act_cost_py_eur = md("**Per person (EUR)**"),
@@ -549,171 +572,163 @@ function(input, output, session) {
         agegroup_first_row, closest_relative_first_row
       ))
 
-    
   })
   
   #### output$cost_analyses_plot ####
   output$cost_analyses_plot <- renderPlot({
 
-    cost_type <- input$cost_analyses_plot_type
-    
+    # Restrict data
     plot_dat <- cost_results %>%
-      filter(
-        population == input$cost_analyses_plot_population_id
-        & var_name != "bd_00"
-        & same_education_req == input$cost_analyses_plot_same_education_req_id
-        & cost_period == input$cost_analyses_plot_cost_period_id
-      ) %>%
       mutate(
         act_cost = act_cost / (eur_dkk_rate * 10**6),
-        act_cost = act_cost_py / eur_dkk_rate,
+        act_cost_py = act_cost_py / eur_dkk_rate,
         att_cost = att_cost / (eur_dkk_rate * 10**6),
-        att_cost = att_cost_py / eur_dkk_rate
+        att_cost_py = att_cost_py / eur_dkk_rate
       )
-    
+    plot_dat[["cost_var"]] <- plot_dat[[input$cost_analyses_plot_cost_type]]
+    plot_dat <- plot_dat %>%
+      select(-c(act_cost, act_cost_py, att_cost, att_cost_py, act_py, att_py, var_pop))
+
     if (input$cost_analyses_plot_pool_relative_types_id == "yes") {
       plot_dat <- plot_dat %>%
-        filter(agegroup == "0-24" | closest_relative_type == "pooled")
+        filter(
+          agegroup == "0-24"
+          | (agegroup != "0-24" & closest_relative_type == "pooled")
+        )
     } else if (input$cost_analyses_plot_pool_relative_types_id == "no") {
       plot_dat <- plot_dat %>%
         filter(closest_relative_type != "pooled")
     }
-    
-    plot_dat$cost_var <- plot_dat[[cost_type]]
 
-    # Identify closest_relative_type values in each agegroup strata.
-    # The plot will have a facet for each agegroup + closest_relative_type
-    # combination
-    
-    facet_info <- plot_dat %>%
-      select(agegroup, agegroup_label,
-             closest_relative_type, closest_relative_type_label) %>%
-      distinct()
-    
-    
+    plot_dat <- plot_dat %>%
+      filter(
+        var_name == input$cost_analyses_plot_var_name_id
+        & population == input$cost_analyses_plot_population_id
+        & same_education_req == input$cost_analyses_plot_same_education_req_id
+        & cost_period == input$cost_analyses_plot_cost_period_id
+      )
 
-    if (cost_type %in% c("act_cost", "att_cost")) {
-      labs_x <- "Cost in million EUR"
-    } else if (cost_type %in% c("act_cost_py", "att_cost_py")) {
-      labs_x <- "Cost in EUR"
+    if (input$cost_analyses_plot_cost_type %in% c("act_cost", "att_cost")) {
+      x_axis_label <- "cost in million EUR"
+    } else if (input$cost_analyses_plot_cost_type %in% c("act_cost_py", "att_cost_py")) {
+      x_axis_label <- "cost in EUR"
     }
-
-    # Make different output plot depending on the agegroup
-    if (input$cost_analyses_plot_agegroup_id %in% c("25-64", "65+")) {
-      # Look at total costs for each brain disease to determine y axis ordering
-      var_name_ordering <- cost_data %>%
-        select(var_name_label, cost_var) %>%
-        group_by(var_name_label) %>%
-        summarize(total_cost = sum(cost_var, na.rm = TRUE)) %>%
-        arrange(total_cost)
-      
-      cost_data <- cost_data %>%
-        mutate(
-          var_name_label = factor(
-            var_name_label,
-            levels = var_name_ordering$var_name_label
-          )
-        )
-      
-      plot_right <- cost_data %>%
-        filter(cost_component != "lost_production_sickness") %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = TRUE,
-          include_legend = TRUE
-        )
-      
-      plot_left <- cost_data %>%
-        filter(cost_component == "lost_production_sickness") %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = FALSE,
-          include_legend = TRUE,
-          flip_plot = TRUE
-        )
-      
-      if (cost_type %in% c("att_cost", "att_cost_py")) {
-        tmp <- plot_left + plot_right 
-      } else if (cost_type %in% c("act_cost", "act_cost_py")) {
-        tmp <- plot_right
-      }
-      
-      tmp + labs(title = "Closest relative type: Closest relative")
-    } else if (input$cost_analyses_plot_agegroup_id == "0-24") {
-      # Look at total costs for each brain disease to determine y axis ordering
-      var_name_ordering <- cost_data %>%
-        select(var_name_label, cost_var) %>%
-        group_by(var_name_label) %>%
-        summarize(total_cost = sum(cost_var, na.rm = TRUE)) %>%
-        arrange(total_cost)
-      
-      cost_data <- cost_data %>%
-        mutate(
-          var_name_label = factor(
-            var_name_label,
-            levels = var_name_ordering$var_name_label
-          )
-        )
-      
-      plot_right_father <- cost_data %>%
-        filter(
-          closest_relative_type == "father"
-          & cost_component != "lost_production_sickness"
-        ) %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = TRUE,
-          include_legend = TRUE
-        )
-      
-      plot_left_father <- cost_data %>%
-        filter(
-          closest_relative_type == "father"
-          & cost_component == "lost_production_sickness"
-        ) %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = FALSE,
-          include_legend = TRUE,
-          flip_plot = TRUE
-        )
-      
-      plot_right_mother <- cost_data %>%
-        filter(
-          closest_relative_type == "mother"
-          & cost_component != "lost_production_sickness"
-        ) %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = TRUE,
-          include_legend = TRUE
-        )
-      
-      plot_left_mother <- cost_data %>%
-        filter(
-          closest_relative_type == "mother"
-          & cost_component == "lost_production_sickness"
-        ) %>%
-        make_costs_barplot(
-          labs_x = {{ labs_x }},
-          y_axis_labels = FALSE,
-          include_legend = TRUE,
-          flip_plot = TRUE
-        )
-      
-            
-      if (cost_type %in% c("att_cost", "att_cost_py")) {
-        tmp_father <- plot_left_father + plot_right_father + plot_annotation(title = "Closest relative type: Father")
-        tmp_mother <- plot_left_mother + plot_right_mother + plot_annotation(title = "Closest relative type: Mother")
-      } else if (cost_type %in% c("act_cost", "act_cost_py")) {
-        tmp_father <- plot_right_father + plot_annotation(title = "Closest relative type: Father")
-        tmp_mother <- plot_right_mother + plot_annotation(title = "Closest relative type: Mother")
-      }
-      
-      wrap_elements(tmp_father) + wrap_elements(tmp_mother)
+    
+    plot_title <- case_when(
+      input$cost_analyses_plot_cost_type == "act_cost" ~ "Total actual costs",
+      input$cost_analyses_plot_cost_type == "act_cost_py" ~ "Per person actual costs",
+      input$cost_analyses_plot_cost_type == "att_cost" ~ "Total attributable costs",
+      input$cost_analyses_plot_cost_type == "att_cost_py" ~ "Per person attributable costs"
+    )
+    
+    brain_disorder_label <- plot_dat %>%
+      select(var_name_label) %>%
+      distinct() %>%
+      pull()
+    
+    plot_title <- paste0(
+      plot_title,
+      ' for "',
+      brain_disorder_label,
+      '" in the year'
+    )
+    
+    if (input$cost_analyses_plot_cost_period_id == "before_index") {
+      plot_title <- paste0(plot_title, " before the index date")
+    } else if (input$cost_analyses_plot_cost_period_id == "after_index") {
+      plot_title <- paste0(plot_title, " after the index date")
     }
+    
+    plot_subtitle <- case_when(
+      input$cost_analyses_plot_population_id == "prev_2021" ~ "Prevalent cohort 2021",
+      input$cost_analyses_plot_population_id == "inc_2016_2021" ~ "Incident cohort 2016-2021"
+    )
+
+    if (input$cost_analyses_plot_cost_type %in% c("att_cost", "att_cost_py")) {
+      include_lost_production <- TRUE
+    } else if (input$cost_analyses_plot_cost_type %in% c("act_cost", "act_cost_py")) {
+      include_lost_production <- FALSE
+    }
+    
+    # Determine min and max values of costs to determine x axis limits across
+    # plots
+    x_axis_limits <- plot_dat %>%
+      mutate(
+        cost_group = ifelse(
+          cost_component == "lost_production_sickness",
+          "lost_prod",
+          "other"
+        ),
+        cost_var = ifelse(cost_group == "lost_prod", - cost_var, cost_var)
+      ) %>%
+      group_by(agegroup, closest_relative_type, cost_group) %>%
+      summarize(total_cost = sum(cost_var, na.rm = TRUE), .groups = "keep") %>%
+      group_by(cost_group) %>%
+      summarize(
+        max_cost = max(total_cost),
+        min_cost = min(total_cost),
+        .groups = "keep"
+      )  %>%
+      mutate(
+        min_cost = min(0, min_cost),
+        max_cost = max(0, max_cost)
+      )
+    
+    x_axis_limits_other <- x_axis_limits %>%
+      filter(cost_group == "other")
+    x_axis_limits_other <- c(x_axis_limits_other$min_cost, x_axis_limits_other$max_cost)
+    
+    x_axis_limits_lost_prod <- x_axis_limits %>%
+      filter(cost_group == "lost_prod")
+    x_axis_limits_lost_prod <- c(x_axis_limits_lost_prod$min_cost, x_axis_limits_lost_prod$max_cost)
+
+    plot_agegroup_0_24 <- plot_dat %>%
+      filter(agegroup == "0-24") %>%
+      make_cost_plot(
+        title = "Agegroup 0-24",
+        include_lost_production_plot = include_lost_production,
+        x_axis_label = x_axis_label,
+        include_legend = FALSE,
+        x_axis_limits_left_plot = x_axis_limits_lost_prod,
+        x_axis_limits_right_plot = x_axis_limits_other
+      )
+
+    plot_agegroup_25_64 <- plot_dat %>%
+      filter(agegroup == "25-64") %>%
+      make_cost_plot(
+        title = "Agegroup 25-64",
+        include_lost_production_plot = include_lost_production,
+        x_axis_label = x_axis_label,
+        include_legend = FALSE,
+        x_axis_limits_left_plot = x_axis_limits_lost_prod,
+        x_axis_limits_right_plot = x_axis_limits_other
+      )
+
+    plot_agegroup_65p <- plot_dat %>%
+      filter(agegroup == "65+") %>%
+      make_cost_plot(
+        title = "Agegroup 65+",
+        include_lost_production_plot = include_lost_production,
+        x_axis_label = x_axis_label,
+        include_legend = TRUE,
+        x_axis_limits_left_plot = x_axis_limits_lost_prod,
+        x_axis_limits_right_plot = x_axis_limits_other
+      )
+
+    wrap_elements(plot_agegroup_0_24) /
+      wrap_elements(plot_agegroup_25_64) /
+      wrap_elements(plot_agegroup_65p) +
+      plot_annotation(
+        title = plot_title,
+        subtitle = plot_subtitle,
+        theme = theme(
+          plot.title = element_text(size = 20, colour = "black"),
+          plot.subtitle = element_text(size = 18, colour = "black")
+        )
+      )
+
   })
   
-}
-  
  
+  
+}
