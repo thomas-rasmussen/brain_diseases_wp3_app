@@ -4,6 +4,7 @@ codelist <- readRDS(here("data", "codelist.rds"))
 patient_characteristics <- readRDS(here("data", "patient_characteristics.rds")) %>%
   mutate(stat_char = ifelse(is.na(stat_char), "", stat_char))
 cost_results <- readRDS(here("data", "cost_results.rds"))
+assess_relatives <- readRDS(here("data", "assess_relatives.rds"))
 
 var_names_as_list <- codelist %>%
   filter(group == "bd_def") %>%
@@ -31,10 +32,8 @@ function(input, output, session) {
   #### output$main_info ####
   output$main_info <- renderUI({
     HTML("
-      <h3>Societal costs for closest family relatives of patients with brain
+      <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
-      
-      <p>Main and supplemental results from the study.</p>
     ")
   })
   
@@ -235,26 +234,141 @@ function(input, output, session) {
     ")
   })
   
+  #### output$identify_relatives_table ####
+  output$identify_relatives_table <- render_gt({
+    tbl_dat <- assess_relatives %>%
+      filter(
+        var_name == input$identify_relatives_var_name_id
+        & population == input$identify_relatives_population_id
+        & additional_relative_req == input$identify_relatives_additional_relative_req_id
+      ) %>%
+      mutate(
+        closest_relative_type_pct = 100*closest_relative_type_n/n_agegroup,
+        has_control_closest_rel_pct = 100*has_control_closest_rel_prop,
+        closest_relative_type_n_pct = paste0(
+          formatC(closest_relative_type_n, digits = 0, format = "d", big.mark = ","),
+          " (",
+          formatC(round(closest_relative_type_pct), digits = 0, format = "d"),
+          "%)"
+        ),
+        closest_relative_type_n_pct = ifelse(
+          closest_relative_type_n_pct == "NA (NA%)",
+          "n/a",
+          closest_relative_type_n_pct
+        ),
+        has_control_closest_rel_pct = paste0(
+          formatC(round(has_control_closest_rel_pct), digits = 0, format = "d")
+        ),
+        has_control_closest_rel_pct =ifelse(
+          has_control_closest_rel_pct == "NA",
+          "n/a",
+          paste0(has_control_closest_rel_pct, "%")
+        ),
+        n_agegroup = formatC(n_agegroup, digits = 0, format = "d", big.mark = ","),
+        agegroup_n_label = paste0(agegroup_label, "\nn = ", n_agegroup),
+        closest_relative_type_label_n_pct = paste0(
+          closest_relative_type_label, "\nn = ", closest_relative_type_n_pct
+        )
+      ) %>%
+      arrange(agegroup, closest_relative_type_order) %>%
+      select(
+        agegroup_n_label, closest_relative_type_label_n_pct,
+        has_control_closest_rel_pct, var_name_label, population_label
+      )
+    
+    # Only show agegroup values in first row
+    tbl_dat <- tbl_dat %>%
+      group_by(agegroup_n_label) %>%
+      mutate(
+        first_agegroup_row = row_number() == 1L,
+        agegroup_n_label = ifelse(first_agegroup_row, agegroup_n_label, ""),
+      ) %>%
+      ungroup()
+
+    # Construct table title 
+    tbl_title <- "Source population of patients with a"
+    
+    if(input$identify_relatives_population_id == "prev_2021") {
+      tbl_title <- paste0(tbl_title, " prevalent")
+    } else if (input$identify_relatives_population_id == "inc_2016_2021") {
+      tbtl_title <- paste0(tbl_title, " incident")
+    }
+    
+    tbl_title <- paste0(
+      tbl_title,
+      " brain disorder",
+      ", relatives identified and percentage with at least one eligible comparator"
+    )
+    
+    tbl_dat <- tbl_dat %>%
+      gt() %>%
+      tab_header(
+          title = tbl_title,
+          subtitle = paste0(tbl_dat$var_name_label[1], " - ", tbl_dat$population_label[1])
+        ) %>%
+      cols_label(
+        agegroup_n_label = md("**Agegroup of index patients in matched population**"),
+        closest_relative_type_label_n_pct = md("**Closest relative type identified**"),
+        has_control_closest_rel_pct = md("**Available control with same type of closest relative**")
+      ) %>%
+      # Preserve whitespace, ie newline symbols, in table cells
+      tab_style(style = cell_text(whitespace = "pre"), locations = cells_body()) %>%
+      # Make parts of cell text bold
+      text_transform(
+        locations = cells_body(columns = c(closest_relative_type_label_n_pct, agegroup_n_label)),
+        fn = function(x) {
+          gsub("^(.+)(n = .+)$", "<span style='font-weight:bold'>\\1</span>\\2", x)
+        }
+      ) %>%
+      tab_style(
+        style = cell_borders(
+          sides = "top",
+          color = "black",
+          weight = px(2),
+          style = "solid"
+        ),
+        locations = cells_body(rows = first_agegroup_row)
+      )
+    
+      if (input$identify_relatives_additional_relative_req_id == "yes") {
+        tbl_dat <- tbl_dat %>%
+          tab_footnote(
+            footnote = "
+              Comparison relatives are additionally required to fulfill
+              the following with respect to the closest relative of the
+              associated brain disorder patient:
+              1) Have the same level of education
+              2) Being born within five years of the person",
+              location = cells_column_labels(columns = has_control_closest_rel_pct)
+          ) 
+      }
+    
+      tbl_dat %>%
+      cols_hide(columns = c(var_name_label, population_label, first_agegroup_row))
+
+      
+  })
+  
   #### output$patient_characteristics_table ####
   output$patient_characteristics_table <- render_gt({
     
     if (input$patient_characteristics_pool_relative_types_id == "yes") {
       tbl_dat <- patient_characteristics %>%
-        filter(agegroup == "0-24" | closest_relative_type == "pooled")
+        filter(agegroup == "0-24" | closest_relative_group == "pooled")
     } else if (input$patient_characteristics_pool_relative_types_id == "no") {
       tbl_dat <- patient_characteristics %>%
-        filter(agegroup == "0-24" | closest_relative_type != "pooled")
+        filter(agegroup == "0-24" | closest_relative_group != "pooled")
     }
     
     tbl_dat <- tbl_dat %>%
       filter(
         var_name == input$patient_characteristics_var_name_id
         & population ==  input$patient_characteristics_population_id
-        & same_education_req == input$patient_characteristics_same_education_req_id
+        & additional_relative_req == input$patient_characteristics_additional_relative_req_id
       ) %>%
       select(
         var_name_label, population_label, agegroup, agegroup_label,
-        closest_relative_type, closest_relative_type_label,
+        closest_relative_group, closest_relative_group_label,
         label, case_relative, label_order, stat_char
       ) %>%
       mutate(
@@ -284,30 +398,30 @@ function(input, output, session) {
           "education_level: short_education" ~ "\u2800\u2800Primary",
           "education_level: medium_education" ~ "\u2800\u2800Secondary",
           "education_level: long_education" ~ "\u2800\u2800Tertiary",
-          "closest_relative_relation: title" ~ "Relation to patient, n (%)",
-          "closest_relative_relation: partner" ~ "\u2800\u2800Partner",
-          "closest_relative_relation: mother" ~ "\u2800\u2800Mother",
-          "closest_relative_relation: father" ~ "\u2800\u2800Father",
-          "closest_relative_relation: child" ~ "\u2800\u2800Child",
-          "closest_relative_relation: sibling" ~ "\u2800\u2800Sibling",
+          "closest_relative_type: title" ~ "Relation to patient, n (%)",
+          "closest_relative_type: partner" ~ "\u2800\u2800Partner",
+          "closest_relative_type: mother" ~ "\u2800\u2800Mother",
+          "closest_relative_type: father" ~ "\u2800\u2800Father",
+          "closest_relative_type: child" ~ "\u2800\u2800Child",
+          "closest_relative_type: sibling" ~ "\u2800\u2800Sibling",
           .default = label
         )
       ) %>%
       select(-label_order) %>%
       relocate(
         var_name_label, population_label, agegroup_label,
-        closest_relative_type_label, label, case_relative_1, case_relative_0
+        closest_relative_group_label, label, case_relative_1, case_relative_0
       )
 
       tbl_dat <- tbl_dat %>%
         group_by(agegroup_label) %>%
         mutate(agegroup_first_row = row_number() == 1L) %>%
-        group_by(agegroup_label, closest_relative_type_label) %>%
+        group_by(agegroup_label, closest_relative_group_label) %>%
         mutate(closest_relative_first_row = row_number() == 1L) %>%
         ungroup() %>%
         mutate(
           agegroup_label = ifelse(agegroup_first_row, agegroup_label, ""),
-          closest_relative_type_label = ifelse(closest_relative_first_row, closest_relative_type_label, "")
+          closest_relative_group_label = ifelse(closest_relative_first_row, closest_relative_group_label, "")
         )
       
       if (input$patient_characteristics_population_id == "prev_2021") {
@@ -325,7 +439,7 @@ function(input, output, session) {
         ) %>%
         cols_label(
           agegroup_label = md("**Age strata of index patients**"),
-          closest_relative_type_label = md("**Closest relative type**"),
+          closest_relative_group_label = md("**Closest relative type**"),
           label = md("**Characteristic of family<br>relatives by age strata of<br>index patients**"),
           case_relative_0 = md("**Comparison relative**"),
           case_relative_1 = md("**Closest family relatives<br>of brain disorder patients**")
@@ -336,7 +450,7 @@ function(input, output, session) {
         ) %>%
         tab_style(
           style = list(cell_text(weight = "bold")),
-          locations = cells_body(columns = c(agegroup_label, closest_relative_type_label))
+          locations = cells_body(columns = c(agegroup_label, closest_relative_group_label))
         ) %>%
         tab_style(
           style = cell_borders(
@@ -353,11 +467,16 @@ function(input, output, session) {
           heading.padding = px(0)
         )
       
-      if (input$patient_characteristics_same_education_req_id == "yes") {
+      if (input$patient_characteristics_additional_relative_req_id == "yes") {
         tbl_dat <- tbl_dat %>%
           tab_footnote(
-            footnote = "Comparison relatives are additionally required to have the same type of education as the relative to the index patient",
-            location = cells_column_labels(columns = case_relative_0)
+            footnote = "
+              Comparison relatives are additionally required to fulfill
+              the following with respect to the closest relative of the
+              associated brain disorder patient:
+              1) Have the same level of education
+              2) Being born within five years of the person",
+              location = cells_column_labels(columns = case_relative_0)
           ) 
       }
       
@@ -366,8 +485,8 @@ function(input, output, session) {
           tab_footnote(
             footnote = "Results are pooled for all closest relative types: Children, parents, partners, and siblings",
             location = cells_body(
-              columns = closest_relative_type_label,
-              rows = closest_relative_type == "pooled"
+              columns = closest_relative_group_label,
+              rows = closest_relative_group == "pooled"
                      & closest_relative_first_row == 1L
                      & agegroup == "25-64"
             )
@@ -375,8 +494,8 @@ function(input, output, session) {
           tab_footnote(
             footnote = "Results are pooled for all closest relative types: Children and partners",
             location = cells_body(
-              columns = closest_relative_type_label,
-              rows = closest_relative_type == "pooled"
+              columns = closest_relative_group_label,
+              rows = closest_relative_group == "pooled"
                      & closest_relative_first_row == 1L
                      & agegroup == "65+"
             )
@@ -386,7 +505,7 @@ function(input, output, session) {
       tbl_dat  %>%
         cols_hide(columns = c(
           agegroup_first_row, closest_relative_first_row,
-          closest_relative_type,agegroup
+          closest_relative_group, agegroup
         ))
 
   })
@@ -399,7 +518,7 @@ function(input, output, session) {
       filter(
         var_name == input$cost_analyses_table_var_name_id
         & population == input$cost_analyses_table_population_id
-        & same_education_req == input$cost_analyses_table_same_education_req_id
+        & additional_relative_req == input$cost_analyses_table_additional_relative_req_id
         & cost_period == input$cost_analyses_table_cost_period_id
       )
     
@@ -407,17 +526,17 @@ function(input, output, session) {
       tbl_dat <- tbl_dat %>%
         filter(
           agegroup == "0-24"
-          | (agegroup != "0-24" & closest_relative_type == "pooled")
+          | (agegroup != "0-24" & closest_relative_group == "pooled")
         )
     } else if (input$cost_analyses_table_pool_relative_types_id == "no") {
       tbl_dat <- tbl_dat %>%
-        filter(closest_relative_type != "pooled")
+        filter(closest_relative_group != "pooled")
     }
     
     tbl_dat <- tbl_dat %>%
       select(-c(
         cost_period, cost_period_label,
-        same_education_req_label, var_pop, cost_component_order,
+        additional_relative_req_label, var_pop, cost_component_order,
         cost_component_f
       ))
     
@@ -430,33 +549,31 @@ function(input, output, session) {
         att_cost_py_eur = att_cost_py / eur_dkk_rate
       )
     
-    # Find number of patients in each agegroup/closest_relative_type strata
+    # Find number of patients in each agegroup/closest_relative_group strata
     tbl_dat <- tbl_dat %>%
       left_join(
         patient_characteristics %>%
           filter(case_relative == 1 & var == "__n") %>%
-          select("same_education_req", "population", "var_name",
-                 "agegroup", "closest_relative_type", "stat_num1"),
-        by = c("same_education_req", "population", "var_name",
-               "agegroup", "closest_relative_type")
+          select("additional_relative_req", "population", "var_name",
+                 "agegroup", "closest_relative_group", "stat_num1"),
+        by = c("additional_relative_req", "population", "var_name",
+               "agegroup", "closest_relative_group")
       ) %>%
       rename(n_cases_strata = stat_num1) %>%
       mutate(n_cases_strata = formatC(as.integer(n_cases_strata), digits = 0, format = "d", big.mark = ",")) %>%
-      select(-same_education_req)
+      select(-additional_relative_req)
     
     tbl_dat <- tbl_dat %>%
         group_by(agegroup_label) %>%
         mutate(agegroup_first_row = row_number() == 1L) %>%
-        group_by(agegroup_label, closest_relative_type_label) %>%
+        group_by(agegroup_label, closest_relative_group_label) %>%
         mutate(closest_relative_first_row = row_number() == 1L) %>%
         ungroup() %>%
         mutate(
           agegroup_label = ifelse(agegroup_first_row, agegroup_label, ""),
-          closest_relative_type_label = ifelse(closest_relative_first_row, closest_relative_type_label, ""),
+          closest_relative_group_label = ifelse(closest_relative_first_row, closest_relative_group_label, ""),
           n_cases_strata = ifelse(closest_relative_first_row, n_cases_strata, "")
         )
-    
-
     
     if (input$cost_analyses_table_cost_period_id == "before_index") {
       tbl_title_p1 <- "Cost of illness in the year prior to index date"
@@ -478,7 +595,7 @@ function(input, output, session) {
     
     tbl_dat <- tbl_dat %>%
       relocate(
-        agegroup_label, closest_relative_type_label, n_cases_strata,
+        agegroup_label, closest_relative_group_label, n_cases_strata,
         cost_component_label, act_cost_mil_eur, act_cost_py_eur,
         att_cost_mil_eur, att_cost_py_eur
       ) %>%
@@ -497,7 +614,7 @@ function(input, output, session) {
       ) %>%
       cols_label(
         agegroup_label = md("**Age strata of index patients**"),
-        closest_relative_type_label = md("**Closest relative type**"),
+        closest_relative_group_label = md("**Closest relative type**"),
         n_cases_strata = md("**Number of index patients**"),
         cost_component_label = md("**Cost component**"),
         act_cost_mil_eur = md("**Total (million EUR)**"),
@@ -507,7 +624,7 @@ function(input, output, session) {
       ) %>%
       tab_style(
         style = cell_text(weight = "bold"),
-        locations = cells_body(columns = c(agegroup_label, closest_relative_type_label))
+        locations = cells_body(columns = c(agegroup_label, closest_relative_group_label))
       ) %>%
       tab_style(
         style = cell_borders(
@@ -547,8 +664,8 @@ function(input, output, session) {
         tab_footnote(
           footnote = "Results are pooled for all closest relative types: Children, parents, partners, and siblings",
           location = cells_body(
-            columns = closest_relative_type_label,
-            rows = closest_relative_type == "pooled"
+            columns = closest_relative_group_label,
+            rows = closest_relative_group == "pooled"
                    & closest_relative_first_row == 1L
                    & agegroup == "25-64"
           )
@@ -556,8 +673,8 @@ function(input, output, session) {
         tab_footnote(
           footnote = "Results are pooled for all closest relative types: Children and partners",
           location = cells_body(
-            columns = closest_relative_type_label,
-            rows = closest_relative_type == "pooled"
+            columns = closest_relative_group_label,
+            rows = closest_relative_group == "pooled"
                    & closest_relative_first_row == 1L
                    & agegroup == "65+"
           )
@@ -567,7 +684,7 @@ function(input, output, session) {
     tbl_dat %>%
       cols_hide(columns = c(
         population, population_label, var_name, var_name_label,
-        closest_relative_type, agegroup, cost_component,
+        closest_relative_group, agegroup, cost_component,
         act_cost, act_py, act_cost_py, att_cost, att_py, att_cost_py,
         agegroup_first_row, closest_relative_first_row
       ))
@@ -593,18 +710,18 @@ function(input, output, session) {
       plot_dat <- plot_dat %>%
         filter(
           agegroup == "0-24"
-          | (agegroup != "0-24" & closest_relative_type == "pooled")
+          | (agegroup != "0-24" & closest_relative_group == "pooled")
         )
     } else if (input$cost_analyses_plot_pool_relative_types_id == "no") {
       plot_dat <- plot_dat %>%
-        filter(closest_relative_type != "pooled")
+        filter(closest_relative_group != "pooled")
     }
 
     plot_dat <- plot_dat %>%
       filter(
         var_name == input$cost_analyses_plot_var_name_id
         & population == input$cost_analyses_plot_population_id
-        & same_education_req == input$cost_analyses_plot_same_education_req_id
+        & additional_relative_req == input$cost_analyses_plot_additional_relative_req_id
         & cost_period == input$cost_analyses_plot_cost_period_id
       )
 
@@ -661,7 +778,7 @@ function(input, output, session) {
         ),
         cost_var = ifelse(cost_group == "lost_prod", - cost_var, cost_var)
       ) %>%
-      group_by(agegroup, closest_relative_type, cost_group) %>%
+      group_by(agegroup, closest_relative_group, cost_group) %>%
       summarize(total_cost = sum(cost_var, na.rm = TRUE), .groups = "keep") %>%
       group_by(cost_group) %>%
       summarize(

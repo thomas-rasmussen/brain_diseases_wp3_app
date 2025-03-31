@@ -5,7 +5,7 @@ library(here)
 library(readr)
 library(stringr)
 
-version_id <- "v6_2025-03-19"
+version_id <- "v7_2025-03-26"
 
 
 #### Import data ####
@@ -17,9 +17,9 @@ cost_results <- read_delim(
     .default = "d",
     "cost_component" = "c",
     "cost_period" = "c",
-    "same_education_req" = "c",
+    "additional_relative_req" = "c",
     "var_pop" = "c",
-    "closest_relative_type" = "c",
+    "closest_relative_group" = "c",
     "agegroup" = "c"
   )
 )
@@ -34,12 +34,22 @@ codelist <-  read_delim(
 )
 
 patient_characteristics <-  read_delim(
-    here("data", version_id, paste0("patient_characteristics_", version_id, ".csv")),
-    delim = "|",
-    col_types = list(.default = "c")
-  )
+  here("data", version_id, paste0("patient_characteristics_", version_id, ".csv")),
+  delim = "|",
+  col_types = list(.default = "c")
+)
   
-
+assess_relatives <- read_delim(
+  here("data", version_id, paste0("assess_relatives_", version_id, ".csv")),
+  delim = "|",
+  col_types = list(
+    .default = "d",
+    "additional_relative_req" = "c",
+    "var_pop" = "c",
+    "agegroup" = "c",
+    "closest_relative_type" = "c"
+  )
+)
 
 #### Create additional datasets ####
 
@@ -101,9 +111,9 @@ cost_period_labels <- tibble(
   cost_period_label = c("Before index date", "After index date")
 )
 
-same_education_req_labels <- tibble(
-  same_education_req = c("no", "yes"),
-  same_education_req_label = c("No", "Yes")
+additional_relative_req_labels <- tibble(
+  additional_relative_req = c("no", "yes"),
+  additional_relative_req_label = c("No", "Yes")
 )
 
 #### Add variables to data ####
@@ -111,14 +121,14 @@ cost_results <- cost_results %>%
   mutate(
     var_name = word(var_pop, 1, sep = "#"),
     population = word(var_pop, 2, sep = "#"),
-    closest_relative_type_label = case_match(
-      closest_relative_type,
-      "child" ~ "Childen",
+    closest_relative_group_label = case_match(
+      closest_relative_group,
       "father" ~ "Fathers",
-      "pooled" ~ "Pooled",
       "mother" ~ "Mothers",
+      "child" ~ "Children",
       "parent" ~ "Parents",
       "partner" ~ "Partners",
+      "pooled" ~ "Pooled",
       "sibling" ~ "Siblings"
     )
   ) %>%
@@ -126,7 +136,7 @@ cost_results <- cost_results %>%
   left_join(var_name_labels, by = "var_name") %>%
   left_join(population_labels, by = "population") %>%
   left_join(agegroup_labels, by = "agegroup") %>%
-  left_join(same_education_req_labels, by = "same_education_req") %>%
+  left_join(additional_relative_req_labels, by = "additional_relative_req") %>%
   left_join(cost_period_labels, by = "cost_period")
 
 
@@ -152,11 +162,11 @@ patient_characteristics <- patient_characteristics %>%
   left_join(var_name_labels, by = "var_name") %>%
   left_join(population_labels, by = "population") %>%
   left_join(agegroup_labels, by = "agegroup") %>%
-  left_join(same_education_req_labels, by = "same_education_req") %>%
+  left_join(additional_relative_req_labels, by = "additional_relative_req") %>%
   mutate(
-    closest_relative_type_label = case_match(
-      closest_relative_type,
-      "child" ~ "Childen",
+    closest_relative_group_label = case_match(
+      closest_relative_group,
+      "child" ~ "Children",
       "father" ~ "Fathers",
       "pooled" ~ "Pooled",
       "mother" ~ "Mothers",
@@ -178,25 +188,57 @@ patient_characteristics <- patient_characteristics %>%
       "education_level: short_education" ~ 12,
       "education_level: medium_education" ~ 13,
       "education_level: long_education" ~ 14,
-      "closest_relative_relation: title" ~ 20,
-      "closest_relative_relation: mother" ~ 21,
-      "closest_relative_relation: father" ~ 22,
-      "closest_relative_relation: partner" ~ 23,
-      "closest_relative_relation: parent" ~ 24,
-      "closest_relative_relation: child" ~ 25,
-      "closest_relative_relation: sibling" ~ 26,
-      
+      "closest_relative_type: title" ~ 20,
+      "closest_relative_type: mother" ~ 21,
+      "closest_relative_type: father" ~ 22,
+      "closest_relative_type: partner" ~ 23,
+      "closest_relative_type: parent" ~ 24,
+      "closest_relative_type: child" ~ 25,
+      "closest_relative_type: sibling" ~ 26
     )
-  ) 
-  
+  )
+
+assess_relatives <- assess_relatives %>%
+  mutate(
+    var_name = word(var_pop, 1, sep = "#"),
+    population = word(var_pop, 2, sep = "#")
+  ) %>%
+  left_join(var_name_labels, by = "var_name") %>%
+  left_join(population_labels, by = "population") %>%
+  left_join(agegroup_labels, by = "agegroup") %>%
+  left_join(additional_relative_req_labels, by = "additional_relative_req") %>%
+  mutate(
+    closest_relative_type_label = case_match(
+      closest_relative_type,
+      "child" ~ "Children",
+      "father" ~ "Fathers",
+      "pooled" ~ "Pooled",
+      "mother" ~ "Mothers",
+      "parent" ~ "Parents",
+      "partner" ~ "Partners",
+      "sibling" ~ "Siblings",
+      "no_relative" ~ "No available closest relative"
+    ),
+    closest_relative_type_order = case_match(
+      closest_relative_type,
+      "mother" ~ 1,
+      "father" ~ 2,
+      "partner" ~ 3,
+      "parent" ~ 4,
+      "child" ~ 5,
+      "sibling" ~ 6,
+      "no_relative" ~ 7
+    )
+  )
+
 
 #### Reorder variables and sort data ####
 cost_results <- cost_results %>%
   relocate(
     cost_period,
     cost_period_label,
-    same_education_req,
-    same_education_req_label,
+    additional_relative_req,
+    additional_relative_req_label,
     var_pop,
     population,
     population_label,
@@ -204,8 +246,8 @@ cost_results <- cost_results %>%
     var_name_label,
     agegroup,
     agegroup_label,
-    closest_relative_type,
-    closest_relative_type_label,
+    closest_relative_group,
+    closest_relative_group_label,
     cost_component,
     cost_component_label,
     act_cost,
@@ -225,14 +267,14 @@ cost_results <- cost_results %>%
     )
   ) %>%
   arrange(
-    cost_period, same_education_req, var_pop, var_name, agegroup,
-    closest_relative_type, cost_component_order
+    cost_period, additional_relative_req, var_pop, var_name, agegroup,
+    closest_relative_group, cost_component_order
   )
 
 patient_characteristics <- patient_characteristics %>%
   relocate(
-    same_education_req,
-    same_education_req_label,
+    additional_relative_req,
+    additional_relative_req_label,
     var_pop,
     population,
     population_label,
@@ -240,8 +282,8 @@ patient_characteristics <- patient_characteristics %>%
     var_name_label,
     agegroup,
     agegroup_label,
-    closest_relative_type,
-    closest_relative_type_label,
+    closest_relative_group,
+    closest_relative_group_label,
     case_relative,
     var,
     label,
@@ -251,19 +293,54 @@ patient_characteristics <- patient_characteristics %>%
     stat_num3
   ) %>%
   arrange(
-    same_education_req, var_pop, var_name, agegroup,
-    closest_relative_type, case_relative, label_order
+    additional_relative_req, var_pop, var_name, agegroup,
+    closest_relative_group, case_relative, label_order
   )
 
-
+assess_relatives <- assess_relatives %>%
+  relocate(
+    additional_relative_req,
+    additional_relative_req_label,
+    var_pop,
+    population,
+    population_label,
+    var_name,
+    var_name_label,
+    agegroup,
+    agegroup_label,
+    closest_relative_type,
+    closest_relative_type_label
+  ) %>%
+  arrange(
+    additional_relative_req, var_pop, var_name, agegroup,
+    closest_relative_type_order
+  )
+  
 
 #### Save cleaned data for app ####
 
 # We choose not to compress the data to make it slightly faster to load
 # the app
-saveRDS(cost_results, here("data", "cost_results.rds"), compress = FALSE)
-saveRDS(codelist, here("data", "codelist.rds"), compress = FALSE)
-saveRDS(patient_characteristics, here("data", "patient_characteristics.rds"), compress = FALSE)
+saveRDS(
+  cost_results,
+  here("data", "cost_results.rds"),
+  compress = FALSE
+)
+saveRDS(
+  codelist,
+  here("data", "codelist.rds"),
+  compress = FALSE
+)
+saveRDS(
+  patient_characteristics,
+  here("data", "patient_characteristics.rds"),
+  compress = FALSE
+)
+saveRDS(
+  assess_relatives,
+  here("data", "assess_relatives.rds"),
+  compress = FALSE
+)
 
 
   
