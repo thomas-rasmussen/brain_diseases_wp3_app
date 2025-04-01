@@ -1,5 +1,6 @@
 library(bslib)
 library(DT)
+library(glue)
 library(gt)
 library(here)
 library(patchwork)
@@ -15,18 +16,17 @@ source("helpers.R")
 # Load data
 codelist <- readRDS(here("data", "codelist.rds"))
 
-var_names_as_list <- codelist %>%
+var_name_choices <- codelist %>%
   filter(group == "bd_def") %>%
-  select(var_name, var_label) %>%
+  select(var_label) %>%
   distinct()
-
-var_names_as_list <- setNames(
-  as.list(var_names_as_list$var_name),
-  nm = var_names_as_list$var_label
-)
+population_choices <- c("Prevalent cohort 2021", "Incident cohort 2016-2021")
+additional_relative_req_choices <- c("Yes", "No")
+pool_results_choices <- c("Yes", "No")
+cost_period_choices <- c("Year after index date", "Year before index date")
 
 page_navbar(
-  title = "Version 0.1.0",
+  title = "Brain disorders in Denmark",
   theme = bs_theme(bootswatch = "lumen"),
   #### Main page ####
   nav_panel(title = "Main",
@@ -65,32 +65,26 @@ page_navbar(
         selectInput(
           inputId = "identify_relatives_var_name_id",
           label = "Brain disorder",
-          choices = var_names_as_list
+          choices = var_name_choices
         ),
         selectInput(
           inputId = "identify_relatives_population_id",
           label = "Population",
-          choices = list(
-            "Prevalent cohort 2021" = "prev_2021",
-            "Incident cohort 2016-2021" = "inc_2016_2021"
-          )
+          choices = population_choices
         ),
         selectInput(
           inputId = "identify_relatives_additional_relative_req_id",
           label = "Add additional requirements for comparison relatives*",
-          choices = list(
-            "Yes" = "yes",
-            "No" = "no"
-          )
+          choices = additional_relative_req_choices
         ),
-        html(
-"<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
-the following with respect to the closest relative of the
-associated brain disorder patient:
-- Have the same level of education
-- Being born within five years of the person
-</pre>"
-        )
+        html(glue(
+          "<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
+          the following with respect to the closest relative of the
+          associated brain disorder patient:
+          - Have the same level of education
+          - Being born within five years of the person
+          </pre>"
+        ))
       ),
       withSpinner(gt_output("identify_relatives_table"))
     )
@@ -103,40 +97,31 @@ associated brain disorder patient:
         selectInput(
           inputId = "patient_characteristics_var_name_id",
           label = "Brain disorder",
-          choices = var_names_as_list
+          choices = var_name_choices
         ),
         selectInput(
           inputId = "patient_characteristics_population_id",
           label = "Population",
-          choices = list(
-            "Prevalent cohort 2021" = "prev_2021",
-            "Incident cohort 2016-2021" = "inc_2016_2021"
-          )
+          choices = population_choices
         ),
         selectInput(
           inputId = "patient_characteristics_additional_relative_req_id",
           label = "Add additional requirements for comparison relatives*",
-          choices = list(
-            "Yes" = "yes",
-            "No" = "no"
-          )
+          choices = additional_relative_req_choices
         ),
         selectInput(
           inputId = "patient_characteristics_pool_relative_types_id",
           label = "Pool results for relative types for index patients aged 25 and older",
-          choices = list(
-            "Yes" = "yes",
-            "No" = "no"
-          )
+          choices = pool_results_choices
         ),
-        html(
-"<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
-the following with respect to the closest relative of the
-associated brain disorder patient:
-- Have the same level of education
-- Being born within five years of the person
-</pre>"
-        )
+        html(glue(
+          "<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
+          the following with respect to the closest relative of the
+          associated brain disorder patient:
+          - Have the same level of education
+          - Being born within five years of the person
+          </pre>"
+        ))
       ),
       withSpinner(gt_output("patient_characteristics_table"))
     )
@@ -151,48 +136,36 @@ associated brain disorder patient:
             selectInput(
               inputId = "cost_analyses_table_var_name_id",
               label = "Brain disorder",
-              choices = var_names_as_list
+              choices = var_name_choices
             ),
             selectInput(
               inputId = "cost_analyses_table_population_id",
               label = "Population",
-              choices = list(
-                "Prevalent cohort 2021" = "prev_2021",
-                "Incident cohort 2016-2021" = "inc_2016_2021"
-              )
+              choices = population_choices
             ),
             selectInput(
               inputId = "cost_analyses_table_additional_relative_req_id",
               label = "Add additional requirements for comparison relatives*",
-              choices = list(
-                "Yes" = "yes",
-                "No" = "no"
-              )
+              choices = additional_relative_req_choices
             ),
             selectInput(
               inputId = "cost_analyses_table_pool_relative_types_id",
               label = "Pool results for relative types for index patients aged 25 and older",
-              choices = list(
-                "Yes" = "yes",
-                "No" = "no"
-              )
+              choices = pool_results_choices
             ),
             selectInput(
               inputId = "cost_analyses_table_cost_period_id",
               label = "Cost period",
-              choices = c(
-                "Year after index date" = "after_index",
-                "Year before index date" = "before_index"
-              )
+              choices = cost_period_choices
             ),
-            html(
-"<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
-the following with respect to the closest relative of the
-associated brain disorder patient:
-- Have the same level of education
-- Being born within five years of the person
-</pre>"
-            )
+            html(glue(
+              "<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
+              the following with respect to the closest relative of the
+              associated brain disorder patient:
+              - Have the same level of education
+              - Being born within five years of the person
+              </pre>"
+            ))
           ),
           withSpinner(gt_output("cost_analyses_table"))
         )
@@ -204,15 +177,12 @@ associated brain disorder patient:
             selectInput(
               inputId = "cost_analyses_plot_var_name_id",
               label = "Brain disorder",
-              choices = var_names_as_list
+              choices = var_name_choices
             ),
             selectInput(
               inputId = "cost_analyses_plot_population_id",
               label = "Population",
-              choices = list(
-                "Prevalent cohort 2021" = "prev_2021",
-                "Incident cohort 2016-2021" = "inc_2016_2021"
-              )
+              choices = population_choices
             ),
             selectInput(
               inputId = "cost_analyses_plot_cost_type",
@@ -227,35 +197,26 @@ associated brain disorder patient:
             selectInput(
               inputId = "cost_analyses_plot_additional_relative_req_id",
               label = "Add additional requirements for comparison relatives*",
-              choices = list(
-                "Yes" = "yes",
-                "No" = "no"
-              )
+              choices = additional_relative_req_choices
             ),
             selectInput(
               inputId = "cost_analyses_plot_pool_relative_types_id",
               label = "Pool results for relative types for index patients aged 25 and older",
-              choices = list(
-                "No" = "no",
-                "Yes" = "yes"
-              )
+              choices = pool_results_choices
             ),
             selectInput(
               inputId = "cost_analyses_plot_cost_period_id",
               label = "Cost period",
-              choices = c(
-                "Year after index date" = "after_index",
-                "Year before index date" = "before_index"
-              )
+              choices = cost_period_choices
             ),
-            html(
-"<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
-the following with respect to the closest relative of the
-associated brain disorder patient:
-- Have the same level of education
-- Being born within five years of the person
-</pre>"
-            )
+            html(glue(
+              "<pre style='font-size:0.5vw'>*Comparison relatives are additionally required to fulfill
+              the following with respect to the closest relative of the
+              associated brain disorder patient:
+              - Have the same level of education
+              - Being born within five years of the person
+              </pre>"
+            ))
           ),
           withSpinner(plotOutput("cost_analyses_plot", height = "600px", width = "50%"))
         )

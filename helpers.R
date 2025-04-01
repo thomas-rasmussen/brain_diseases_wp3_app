@@ -11,16 +11,16 @@ make_cost_plot <- function(
   
   # Determine y-axis order based on sum of costs
   y_order <- x %>%
-    group_by(closest_relative_group, closest_relative_group_label) %>%
+    group_by(closest_relative_group) %>%
     summarize(total_cost = sum(cost_var, na.rm = TRUE), .groups = "keep") %>%
     arrange(total_cost)
 
   x <- x %>%
     mutate(
-      closest_relative_group_f = factor(
+      closest_relative_group_order = factor(
         closest_relative_group,
         levels = y_order$closest_relative_group,
-        labels = y_order$closest_relative_group_label
+        labels = y_order$closest_relative_group
       )
     )
 
@@ -32,8 +32,8 @@ make_cost_plot <- function(
   )
 
   right_plot <- x %>%
-    filter(cost_component != "lost_production_sickness") %>%
-    ggplot(aes(x = cost_var, y = closest_relative_group_f, fill = cost_component_f)) +
+    filter(cost_component != "Lost productivity (income loss)") %>%
+    ggplot(aes(x = cost_var, y = closest_relative_group_order, fill = cost_component)) +
     geom_bar(position = "stack", stat = "identity") +
     theme_bw() +
     # cvd-friendly qualitative color palette from "Fundamentals of Data
@@ -71,8 +71,8 @@ make_cost_plot <- function(
   if (include_lost_production_plot) {
     left_plot <- x %>%
       mutate(cost_var = -cost_var) %>%
-      filter(cost_component == "lost_production_sickness") %>%
-      ggplot(aes(x = cost_var, y = closest_relative_group_f, fill = cost_component_f)) +
+      filter(cost_component == "Lost productivity (income loss)") %>%
+      ggplot(aes(x = cost_var, y = closest_relative_group_order, fill = cost_component)) +
       geom_bar(position = "stack", stat = "identity") +
       theme_bw() +
       # cvd-friendly qualitative color palette from "Fundamentals of Data
