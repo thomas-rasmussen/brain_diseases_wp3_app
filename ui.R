@@ -223,8 +223,26 @@ page_navbar(
       )
     )
   ),
-  #### Links ####
   nav_spacer(),
+  ### Download data ####
+  nav_panel(title = "Download data",
+    layout_sidebar(
+      sidebar = sidebar(
+        selectInput(
+          inputId = "download_data_select_data",
+          label = "Choose a dataset",
+          choices = list(
+            "Cost analyses" = "cost_results",
+            "Identification of populations of relatives" = "assess_relatives",
+            "Patient characteristics" = "patient_characteristics"
+          )
+        ),
+        downloadButton("download_data_button", "Download")
+      ),
+      withSpinner(gt_output("download_data_table_preview"))
+    )
+  ),
+  #### Links ####
   nav_menu(
     title = "Links",
     align = "right",

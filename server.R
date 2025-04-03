@@ -16,7 +16,7 @@ function(input, output, session) {
       <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
       
-      <h4 style='text-align:center'>Version 0.1.1</h4>
+      <h4 style='text-align:center'>Version 0.1.2</h4>
     ")
   })
   
@@ -781,6 +781,36 @@ function(input, output, session) {
 
   })
   
+  #### output$download_data_table ####
+  
+  # Reactive valaue for selected data
+  datasetInput <- reactive({
+    switch(
+      input$download_data_select_data,
+      "cost_results" = cost_results,
+      "assess_relatives" = assess_relatives,
+      "patient_characteristics" = patient_characteristics
+    )
+  })
+  
+  # Table of selected dataset
+  output$download_data_table_preview <- render_gt({
+    dataset_name <- input$download_data_select_data
+    tbl_title <- glue("Preview of '{dataset_name}' data")
+    datasetInput() %>%
+      gt_preview() %>%
+      tab_header(title = tbl_title)
+  })
+  
+  # Downloadbale csv of selected dataset
+  output$download_data_button <- downloadHandler(
+    filename = function() {
+      paste0(input$download_data_select_data, ".csv")
+    },
+    content = function(file) {
+      write.csv(datasetInput(), file, row.names = FALSE)
+    }
+  )
  
   
 }
