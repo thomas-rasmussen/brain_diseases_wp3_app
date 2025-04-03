@@ -16,114 +16,176 @@ function(input, output, session) {
       <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
       
-      <h4 style='text-align:center'>Version 0.1.2</h4>
+      <h4 style='text-align:center'>Version 0.1.3</h4>
     ")
   })
   
-  #### output$definitions_details_bd ####
-  output$definitions_details_bd <- renderUI({
-    div(HTML("
-      <h2>Brain disease definitions</h2>
-      
-      <p>Codes used to define brain diseases. Note that if ATC indication codes
-      are specified, the given ATC codes are required to be accompanied with
-      one of the listed ATC indication codes.
+  #### output$definitions_brain_disorders_table ####
+  output$definitions_brain_disorders_table <- render_gt({
     
-      <p>
-      Note that all ICD-10 and ATC subcodes are included/excluded.
-      </p>
-    "))
-  })
-    
-  #### output$definitions_details_cci ####
-  output$definitions_details_cci <- renderUI({
-    div(HTML("
-      <h2>Charlson Comorbidity index definitions</h2>
-    
-      <p>
-      Note that all ICD-10 and ATC subcodes are included/excluded.
-      </p>
-    "))
-  })
-  
-  #### output$definitions_details_education ####
-  output$definitions_details_education <- renderUI({
-    div(HTML("
-      <h2>Highest completed education definition</h2>
-      
-      <p>Highest completed education was defined the UDDA registry. The registry
-      provided codes (HFAUDD) and dates (HF_VFRA) for completed educations.
-      These educations were grouped into education levels of 'No education',
-      'Short education', 'Medium education' and 'long education', and from the
-      point a person completed an education at one education level, the person
-      was regarded as being of that education level from that point onwards.</p>
-    "))
-  })
-  
-  #### output$definitions_table_bd ####
-  output$definitions_table_bd <- renderTable(striped = TRUE, {
-    
-    codelist %>%
+    # Extract definition and restructure data
+    tbl_dat <- codelist %>%
       filter(
         group == "bd_def" & var_name != "bd_00"
         & (!is.na(code_include) | !is.na(code_include))
       ) %>%
       select(var_label, code_type, code_include, code_exclude) %>%
-      mutate(
-        code_type = case_match(
-          code_type,
-          "icd10" ~ "ICD-10",
-          "atc" ~ "ATC",
-          "indo" ~ "ATC indication",
-          "sssy" ~ "SSSY"
-        )
+      pivot_wider(
+        names_from = code_type,
+        values_from = c(code_include, code_exclude)
       ) %>%
+      select(-c(code_exclude_indo, code_exclude_atc)) %>%
       rename(
-        "Brain disorder" = var_label,
-        "Code type" = code_type,
-        "Codes included" = code_include,
-        "Subcoodes excluded" = code_exclude
+        brain_disorder = var_label,
+        icd10_include = code_include_icd10,
+        icd10_exclude = code_exclude_icd10,
+        atc_include = code_include_atc,
+        indo_include = code_include_indo
+      ) %>%
+      mutate(
+        icd10_exclude = ifelse(is.na(icd10_exclude), "", icd10_exclude),
+        atc_include = ifelse(is.na(atc_include), "", atc_include),
+        indo_include = ifelse(is.na(indo_include), "", indo_include)
+      ) %>%
+      relocate(
+        brain_disorder,
+        icd10_include,
+        icd10_exclude,
+        atc_include,
+        indo_include
+      )
+    
+    # Make table
+    tbl_dat %>%
+      gt() %>%
+      tab_header(title = "Codes used to define brain disorders") %>%
+      tab_spanner(
+        id = "spanner_icd10",
+        label = md("**ICD-10 codes**"),
+        columns = c(icd10_include, icd10_exclude)
+      ) %>%
+      tab_spanner(
+        id = "spanner_atc",
+        label = md("**ATC codes**"),
+        columns = c(atc_include, indo_include )
+      ) %>%
+      cols_label(
+        brain_disorder = md("**Brain disorder**"),
+        icd10_include = md("**Include**"),
+        icd10_exclude = md("**Exclude**"),
+        atc_include = md("**Include**"),
+        indo_include = md("**Indication**")
+      ) %>%
+      tab_options(
+        data_row.padding = px(0),
+        column_labels.padding = px(0),
+        heading.padding = px(0)
+      ) %>%
+      tab_footnote(
+        footnote = "All ICD-10 subcodes are included/excluded.",
+        location = cells_column_spanners(spanners = "spanner_icd10")
+      ) %>%
+      tab_footnote(
+        footnote = "All ATC subcodes are included/excluded.",
+        location = cells_column_spanners(spanners = "spanner_atc")
+      ) %>%
+      tab_footnote(
+        footnote = "
+          If ATC indication codes are specified, the given included ATC
+          codes are required to be accompanied with one of the listed
+          indication codes.
+        ",
+        location = cells_column_labels(columns = indo_include)
       )
   })
  
-  #### output$definitions_table_cci ####
-  output$definitions_table_cci <- renderTable(striped = TRUE, {
+  #### output$definitions_cci_table ####
+  output$definitions_cci_table <- render_gt({
     
-    codelist %>%
+    # Extract definition and restructure data
+    tbl_dat <- codelist %>%
       filter(
         group == "cci"
         & (!is.na(code_include) | !is.na(code_include))
       ) %>%
-      select(var_label, code_type, code_include, code_exclude) %>%
-      mutate(
-        code_type = case_match(
-          code_type,
-          "icd10" ~ "ICD-10",
-          "icd8" ~ "ICD-8"
-        )
-      ) %>%
+      select(var_label, code_type, code_include) %>%
+      pivot_wider(names_from = code_type, values_from = code_include) %>%
       rename(
-        "CCI disease" = var_label,
-        "Code type" = code_type,
-        "Codes included" = code_include,
-        "Subcoodes excluded" = code_exclude
+        cci_disease = var_label,
+        icd8_include = icd8,
+        icd10_include = icd10
+      ) %>%
+      relocate(cci_disease, icd8_include, icd10_include)
+
+    # Make table
+    tbl_dat %>%
+      gt() %>%
+      tab_header(title = "Charlson Comorbidity index definition") %>%
+      tab_spanner(
+        label = md("**Codes included**"),
+        columns = c(icd8_include, icd10_include)
+      ) %>%
+      cols_align("left") %>%
+      cols_label(
+        cci_disease = md("**CCI disease**"),
+        icd8_include = md("**ICD-8**"),
+        icd10_include = md("**ICD-10**"),
+      ) %>%
+      tab_options(
+        data_row.padding = px(0),
+        column_labels.padding = px(0),
+        heading.padding = px(0)
+      ) %>%
+      tab_footnote(
+        footnote = "All ICD8 and ICD-10 subcodes are included",
+        location = cells_column_spanners()
       )
+    
   })
   
-  ####output$definitions_table_education ####
-  output$definitions_table_education <- renderTable(striped = TRUE, {
+  ####output$definitions_education_table ####
+  output$definitions_education_table <- render_gt({
     
-    codelist %>%
+    tbl_dat <- codelist %>%
       filter(group == "education") %>%
       select(var_label, code_type, code_include) %>%
       group_by(var_label) %>%
       mutate(code_include_group = paste(code_include, collapse = " ")) %>%
-      select(-code_include) %>%
+      select(-c(code_include, code_type)) %>%
       distinct() %>%
       rename(
-        "Education level" = var_label,
-        "Code type" = code_type,
-        "Codes included" = code_include_group
+        education_level = var_label,
+        hfaudd_codes = code_include_group
+      ) %>%
+      ungroup()
+    
+    tbl_dat %>%
+      gt() %>%
+      tab_header(title = "Highest completed education definition") %>%
+      cols_align("left") %>%
+      cols_label(
+        education_level = md("**Education level**"),
+        hfaudd_codes = md("**HFAUDD codes**")
+      ) %>%
+      tab_options(
+        data_row.padding = px(0),
+        column_labels.padding = px(0),
+        heading.padding = px(0)
+      ) %>%
+      tab_style(
+        style = cell_text(size = "smaller",),
+        locations = cells_body(columns = hfaudd_codes)
+      ) %>%
+      tab_footnote(
+        footnote = "
+          Highest completed education defined using the UDDA registry. The
+          registry provides codes (HFAUDD) and dates (HF_VFRA) for completed
+          educations. These educations were grouped into education levels of
+          'No education', 'Short education', 'Medium education' and
+          'Long education'. From the point a person completes an education at
+          one level, he/she is considered to be at that education level until
+          he/she completes an education at a higher level.
+      "
       )
   })
   
@@ -147,20 +209,30 @@ function(input, output, session) {
       
       <p>For each prevalent/incident brain disorder population we made
       a matched population with up to 100 controls from the general population,
-      matched on sexand birth year. Furthermore, the controls needed to be
-      living in Denmark and free of the index disease as the time of
+      matched on sex and birth year. Furthermore, the controls needed to be
+      living in Denmark and be free of the index disease at the time of
       matching.</p>
       
-      <h4>Finding Closest relatives</h5>
+      <h4>Closest relatives</h4>
       
-      <p> A closest relative was determined for each case/control based
+      <p> A closest relative was determined for each case and control based
       on the definition on the right. If a case did not have any relevant
       relatives, the case (and matched controls) was removed. Likewise, all
-      controls with no relevant relatives were also removed. Additionally, controls
-      with a type of closest relative that was different from the closest
-      relative of the corresponding case was also removed. Finally, if a case
-      had multiple controls with a valid closest relative, one was chosen at
-      random. </p>
+      controls with no relevant relatives were also removed.
+      
+      For each case's closest relative, we restricted the corresponding
+      control closest relatives to the ones fulfilling the following criteria:
+      
+      <ol>
+        <li>Control closest relative is the same type as the case closest relative
+        <li>Control closest relative has same sex as case closest relative
+        <li>Optional restriction in sensitivity analysis: control closest relative
+            must have same sex and case closest relative, and must be born within
+            five years of the case closest relative.
+      </ol>
+      
+      Finally, if a case had multiple controls with a valid closest relative,
+      one was chosen at random.</p>
     ")
   })
   

@@ -1,5 +1,4 @@
 library(bslib)
-library(DT)
 library(glue)
 library(gt)
 library(here)
@@ -27,7 +26,7 @@ cost_period_choices <- c("Year after index date", "Year before index date")
 
 page_navbar(
   title = "Brain disorders in Denmark",
-  theme = bs_theme(bootswatch = "lumen"),
+  theme = bs_theme(bootswatch = "minty"),
   #### Main page ####
   nav_panel(title = "Main",
     card(htmlOutput("main_info"))
@@ -35,23 +34,20 @@ page_navbar(
   #### Brain disease definitions ####
   nav_panel(title = "Definitions",
     navset_tab(
-      nav_panel(title = "Brain diseases",
-        htmlOutput("definitions_details_bd"),
-        withSpinner(tableOutput("definitions_table_bd"))
+      nav_panel(title = "Brain disorders",
+        withSpinner(gt_output("definitions_brain_disorders_table"))
       ),
       nav_panel(title = "Charlson Comorbidity Index",
-        htmlOutput("definitions_details_cci"),
-        withSpinner(tableOutput("definitions_table_cci"))
+        withSpinner(gt_output("definitions_cci_table"))
       ),
       nav_panel(title = "Education level",
-        htmlOutput("definitions_details_education"),
-        withSpinner(tableOutput("definitions_table_education"))
+        withSpinner(gt_output("definitions_education_table"))
       )
     )
   ),
   #### Studypopulation flowchart ####
   nav_panel(title = "Studypopulation flowchart",
-    layout_columns(col_widths = c(4, 4, 4),
+    layout_columns(col_widths = c(5, 4, 3),
       card(htmlOutput("flowchart_text")),
       card(withSpinner(imageOutput("flowchart_plot"))),
       card(htmlOutput("flowchart_closest_relative_def"))
