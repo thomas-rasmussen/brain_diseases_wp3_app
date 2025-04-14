@@ -5,7 +5,7 @@ library(here)
 library(readr)
 library(stringr)
 
-version_id <- "v8_2025-04-01"
+version_id <- "v9_2025-04-08"
 
 
 #### Clean codelist ####
@@ -139,10 +139,10 @@ cost_results <- read_delim(
 cost_results <- cost_results %>%
   mutate(
     # Convert results from DKK to EUR/million EUR
-    act_cost = act_cost / (eur_dkk_rate * 10**6),
-    act_cost_py = act_cost_py / eur_dkk_rate,
-    att_cost = att_cost / (eur_dkk_rate * 10**6),
-    att_cost_py = att_cost_py / eur_dkk_rate,
+    act_cost_total = act_cost_total / (eur_dkk_rate * 10**6),
+    act_cost_per_person = act_cost_per_person / eur_dkk_rate,
+    att_cost_total = att_cost_total / (eur_dkk_rate * 10**6),
+    att_cost_per_person = att_cost_per_person / eur_dkk_rate,
     var_name = word(var_pop, 1, sep = "#"),
     var_name = factor(
       var_name,
@@ -194,12 +194,13 @@ cost_results <- cost_results %>%
     closest_relative_group,
     cost_component,
     n_cases_included,
-    act_cost,
+    act_cost_total,
     act_py,
-    att_cost,
+    att_cost_total,
     att_py,
-    act_cost_py,
-    att_cost_py
+    act_cost_per_person,
+    att_cost_per_person,
+    att_cost_prop
   ) %>%
   arrange(
     cost_period, additional_relative_req, var_pop, var_name, agegroup,
@@ -214,21 +215,22 @@ saveRDS(
   compress = FALSE
 )
 
-#### Patient characteristics ####
+
+#### Patient characteristics - Relatives ####
 
 # Import
-patient_characteristics <-  read_delim(
+patient_characteristics_relatives <-  read_delim(
   here(
     "data",
     version_id,
-    paste0("patient_characteristics_", version_id, ".csv")
+    paste0("patient_characteristics_relative_", version_id, ".csv")
   ),
   delim = "|",
   col_types = list(.default = "c")
 )
 
 # Clean
-patient_characteristics <- patient_characteristics %>%
+patient_characteristics_relatives <- patient_characteristics_relatives %>%
   rename(
     stat_char = `__stat_char`,
     characteristic_level = `__label`,
@@ -279,7 +281,7 @@ patient_characteristics <- patient_characteristics %>%
   )
  
 # Reorder variables and sort
-patient_characteristics <- patient_characteristics %>%
+patient_characteristics_relatives <- patient_characteristics_relatives %>%
   relocate(
     additional_relative_req,
     var_pop,
@@ -303,8 +305,96 @@ patient_characteristics <- patient_characteristics %>%
 
 # Save
 saveRDS(
-  patient_characteristics,
-  here("data", "patient_characteristics.rds"),
+  patient_characteristics_relatives,
+  here("data", "patient_characteristics_relatives.rds"),
+  compress = FALSE
+)
+
+
+#### Patient characteristics - Cases ####
+
+# Import
+patient_characteristics_cases <-  read_delim(
+  here(
+    "data",
+    version_id,
+    paste0("patient_characteristics_case_", version_id, ".csv")
+  ),
+  delim = "|",
+  col_types = list(.default = "c")
+)
+
+# Clean
+patient_characteristics_cases <- patient_characteristics_cases %>%
+  rename(
+    stat_char = `__stat_char`,
+    characteristic_level = `__label`,
+    characteristic_variable = `__var`,
+    stat_num1 = `__stat_num1`,
+    stat_num2 = `__stat_num2`,
+    stat_num3 = `__stat_num3`
+  ) %>%
+  mutate(
+    stat_char = ifelse(is.na(stat_char), "", stat_char),
+    stat_char = case_match(
+      characteristic_variable,
+      "__n" ~ word(stat_char, 1),
+      .default = stat_char
+    ),
+    var_name = word(var_pop, 1, sep = "#"),
+    var_name = factor(
+      var_name,
+      levels = var_name_labels$var_name,
+      labels = var_name_labels$var_name_label
+    ),
+    population = word(var_pop, 2, sep = "#"),
+    population = factor(
+      population,
+      levels = population_labels$population,
+      labels = population_labels$population_label
+    ),
+    characteristic_level = factor(
+      characteristic_level,
+      levels = characteristic_level_labels$characteristic_level,
+      labels = characteristic_level_labels$characteristic_level_label
+    ),
+    agegroup = factor(
+      agegroup,
+      levels = agegroup_labels$agegroup,
+      labels = agegroup_labels$agegroup_label
+    ),
+    additional_relative_req = factor(
+      additional_relative_req,
+      levels = additional_relative_req_labels$additional_relative_req,
+      labels = additional_relative_req_labels$additional_relative_req_label
+    )
+  )
+ 
+# Reorder variables and sort
+patient_characteristics_cases <- patient_characteristics_cases %>%
+  relocate(
+    additional_relative_req,
+    var_pop,
+    population,
+    var_name,
+    agegroup,
+    characteristic_variable,
+    characteristic_level,
+    stat_char,
+    stat_num1,
+    stat_num2,
+    stat_num3
+  ) %>%
+  arrange(
+    additional_relative_req, var_pop, var_name, agegroup,
+    characteristic_level
+  ) %>%
+  select(-var_pop)
+
+# Save
+saveRDS(
+  patient_characteristics_cases,
+  here("data", "patient_characteristics_cases.rds"),
   compress = FALSE
 )
 
