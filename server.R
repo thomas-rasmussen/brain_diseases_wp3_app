@@ -30,7 +30,7 @@ function(input, output, session) {
       <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
       
-      <h4 style='text-align:center'>Version 0.2.1</h4>
+      <h4 style='text-align:center'>Version 0.2.2</h4>
     ")
   })
   
