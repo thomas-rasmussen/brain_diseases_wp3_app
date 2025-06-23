@@ -17,6 +17,19 @@ codelist <-  read_delim(
   # Used readr::guess_encoding to guess what encoding was needed to correctly
   # read apostrophe in the parkinson disease label
   locale = readr::locale(encoding = "windows-1252")
+) %>%
+  mutate(
+    # Change Alcohol and drug abuse labels
+    var_label = ifelse(
+      group == "bd_def" & var_name == "bd_01",
+      "Alcohol use disorder",
+      var_label
+    ),
+    var_label = ifelse(
+      group == "bd_def" & var_name == "bd_09",
+      "Drug use disorder",
+      var_label
+    )
 )
 
 saveRDS(

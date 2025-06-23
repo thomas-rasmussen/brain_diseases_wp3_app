@@ -6,6 +6,18 @@ patient_characteristics_cases <- readRDS(here("data", "patient_characteristics_c
 cost_results <- readRDS(here("data", "cost_results.rds"))
 assess_relatives <- readRDS(here("data", "assess_relatives.rds"))
 
+# Datasets restricted to what is included in app
+cost_results_restricted <- cost_results %>%
+  filter(cost_period == "Year after index date" & additional_relative_req == "Yes") %>%
+  select(-c(cost_period, additional_relative_req))
+assess_relatives_restricted <- assess_relatives %>%
+  filter(additional_relative_req == "Yes") %>%
+  select(-additional_relative_req)
+
+patient_characteristics_relatives_restricted <- patient_characteristics_relatives %>%
+  filter(additional_relative_req == "Yes") %>%
+  select(-additional_relative_req)
+
 # Load helper functions
 source("helpers.R")
 
@@ -30,7 +42,7 @@ function(input, output, session) {
       <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
       
-      <h4 style='text-align:center'>Version 0.2.2</h4>
+      <h4 style='text-align:center'>Version 0.2.3</h4>
     ")
   })
   
@@ -238,26 +250,16 @@ function(input, output, session) {
       control closest relatives to the ones fulfilling the following criteria:
       
       <ol>
-        <li>Control closest relative is the same type as the case closest relative
-        <li>Control closest relative has same sex as case closest relative
-        <li>Optional restriction in sensitivity analysis: control closest relative
-            must have same sex and case closest relative, and must be born within
-            five years of the case closest relative.
+        <li>Has the same relative type.
+        <li>Has the same sex.
+        <li>Has the same level of education.
+        <li>Is born within 5 years of the case closest relative.
       </ol>
       
       Finally, if a case had multiple controls with a valid closest relative,
       one was chosen at random.</p>
     ")
   })
-  
-  #### output$flowchart_plot ####
-  output$flowchart_plot <- renderImage({
-    list(src = here("diagrams", "relative_cohort_flowchart.svg"),
-         width = 600,
-         height = 800,
-         alt = "Flowchart of studypopulation creation"
-    )
-  }, deleteFile = FALSE)
   
   #### output$flowchart_closest_relative_def ####
   output$flowchart_closest_relative_def <- renderUI({
@@ -314,7 +316,7 @@ function(input, output, session) {
       filter(
         var_name == input$identify_relatives_var_name_id
         & population == input$identify_relatives_population_id
-        & additional_relative_req == input$identify_relatives_additional_relative_req_id
+        & additional_relative_req == "Yes"
       ) %>%
       mutate(
         closest_relative_group_pct = 100 * closest_relative_group_n/n_agegroup,
@@ -402,46 +404,25 @@ function(input, output, session) {
         locations = cells_body(rows = first_agegroup_row)
       )
     
-      if (input$identify_relatives_additional_relative_req_id == "Yes") {
-        tbl_dat <- tbl_dat %>%
-          tab_footnote(
-            footnote = "
-              Comparison relatives are additionally required to fulfill
-              the following with respect to the closest relative of the
-              associated brain disorder patient:
-              1) Have the same level of education
-              2) Being born within five years of the person",
-              location = cells_column_labels(columns = has_control_closest_rel_pct)
-          ) 
-      }
-    
-      tbl_dat %>%
-        cols_hide(columns = c(var_name, population, first_agegroup_row))
+    tbl_dat %>%
+      cols_hide(columns = c(var_name, population, first_agegroup_row))
 
   })
   
   #### output$patient_characteristics_relatives_table ####
   output$patient_characteristics_relatives_table <- render_gt({
     
-    if (input$patient_characteristics_relatives_pool_relative_types_id == "Yes") {
-      tbl_dat <- patient_characteristics_relatives %>%
-        filter(
-          agegroup == "Children and young people (0-24 years)"
-          | closest_relative_group == "Pooled"
-        )
-    } else if (input$patient_characteristics_relatives_pool_relative_types_id == "No") {
-      tbl_dat <- patient_characteristics_relatives %>%
-        filter(
+    tbl_dat <- patient_characteristics_relatives %>%
+      filter(
         agegroup == "Children and young people (0-24 years)"
-        | closest_relative_group != "Pooled"
+        | closest_relative_group == "Pooled"
       )
-    }
-    
+
     tbl_dat <- tbl_dat %>%
       filter(
         var_name == input$patient_characteristics_relatives_var_name_id
         & population ==  input$patient_characteristics_relatives_population_id
-        & additional_relative_req == input$patient_characteristics_relatives_additional_relative_req_id
+        & additional_relative_req == "Yes"
       ) %>%
       select(
         var_name, population, agegroup, closest_relative_group,
@@ -499,7 +480,7 @@ function(input, output, session) {
       title_brain_disorder <- tbl_dat$var_name[1]
       tbl_title <- glue("
         Characteristics of closest family relatives with {title_pop_type} \\
-        '{title_brain_disorder},' by patient agegroup
+        '{title_brain_disorder},' by patient age-group
       ")
       
       tbl_dat <- tbl_dat %>%
@@ -540,19 +521,6 @@ function(input, output, session) {
           heading.padding = px(0)
         )
       
-      if (input$patient_characteristics_relatives_additional_relative_req_id == "Yes") {
-        tbl_dat <- tbl_dat %>%
-          tab_footnote(
-            footnote = "
-              Comparison relatives are additionally required to fulfill
-              the following with respect to the closest relative of the
-              associated brain disorder patient:
-              1) Have the same level of education
-              2) Being born within five years of the person",
-              location = cells_column_labels(columns = case_relative_0)
-          ) 
-      }
-      
       if (input$patient_characteristics_relatives_pool_relative_types_id == "yes") {
         tbl_dat <- tbl_dat %>%
           tab_footnote(
@@ -590,7 +558,7 @@ function(input, output, session) {
     tbl_dat <- patient_characteristics_cases %>%
       filter(
         var_name == input$patient_characteristics_cases_var_name_id
-        & additional_relative_req == input$patient_characteristics_cases_additional_relative_req_id
+        & additional_relative_req == "Yes"
       ) %>%
       mutate(
         pop_key = ifelse(
@@ -616,7 +584,7 @@ function(input, output, session) {
     # Construct table title
     title_brain_disorder <- input$patient_characteristics_cases_var_name_id
     tbl_title <- glue("
-      Characteristics of index patients with '{title_brain_disorder},' by patient agegroup
+      Characteristics of index patients with '{title_brain_disorder},' by patient age-group
     ")
 
   tbl_dat <- tbl_dat %>%
@@ -664,8 +632,8 @@ function(input, output, session) {
       filter(
         var_name == input$cost_analyses_table_var_name_id
         & population == input$cost_analyses_table_population_id
-        & additional_relative_req == input$cost_analyses_table_additional_relative_req_id
-        & cost_period == input$cost_analyses_table_cost_period_id
+        & additional_relative_req == "Yes"
+        & cost_period == "Year after index date"
       )
  
     if (input$cost_analyses_table_pool_relative_types_id == "Yes") {
@@ -697,7 +665,6 @@ function(input, output, session) {
     # Construct table title
     title_cost_period <- case_when(
       input$cost_analyses_table_cost_period_id == "Year after index date" ~ "prior to",
-      input$cost_analyses_table_cost_period_id == "Year before index date" ~ "after",
       .default = "UNKNOWN COST PERIOD"
     )
     title_pop_type <- case_when(
@@ -835,8 +802,8 @@ function(input, output, session) {
       filter(
         var_name == input$cost_analyses_plot_by_type_var_name_id
         & population == input$cost_analyses_plot_by_type_population_id
-        & additional_relative_req == input$cost_analyses_plot_by_type_additional_relative_req_id
-        & cost_period == input$cost_analyses_plot_by_type_cost_period_id
+        & additional_relative_req == "Yes"
+        & cost_period == "Year after index date"
       )
 
     x_axis_label <- case_when(
@@ -873,7 +840,6 @@ function(input, output, session) {
     )
     title_brain_disorder <- plot_dat$var_name[1]
     title_cost_period <- case_when(
-      input$cost_analyses_plot_by_type_cost_period_id == "Year before index date" ~ "before",
       input$cost_analyses_plot_by_type_cost_period_id == "Year after index date" ~ "after",
       .default = "UNKNOWN COST PERIOD"
     )
@@ -1035,8 +1001,8 @@ function(input, output, session) {
       filter(
         var_name == input$cost_analyses_plot_relative_var_name_id
         & population == input$cost_analyses_plot_relative_population_id
-        & additional_relative_req == input$cost_analyses_plot_relative_additional_relative_req_id
-        & cost_period == input$cost_analyses_plot_relative_cost_period_id
+        & additional_relative_req == "Yes"
+        & cost_period == "Year after index date"
       )
 
     # Add number of patients to y-axis label variable
@@ -1055,7 +1021,6 @@ function(input, output, session) {
     title_cost_type <- "Relative attributable costs"
     title_brain_disorder <- plot_dat$var_name[1]
     title_cost_period <- case_when(
-      input$cost_analyses_plot_relative_cost_period_id == "Year before index date" ~ "before",
       input$cost_analyses_plot_relative_cost_period_id == "Year after index date" ~ "after",
       .default = "UNKNOWN COST PERIOD"
     )
@@ -1166,8 +1131,8 @@ function(input, output, session) {
         agegroup == input$cost_analyses_plot_by_disorder_agegroup_id
         & closest_relative_group == input$cost_analyses_plot_by_disorder_closest_relative_id
         & population == input$cost_analyses_plot_by_disorder_population_id
-        & additional_relative_req == input$cost_analyses_plot_by_disorder_additional_relative_req_id
-        & cost_period == input$cost_analyses_plot_by_disorder_cost_period_id
+        & additional_relative_req == "Yes"
+        & cost_period == "Year after index date"
       )
 
       plot_dat$cost_var <- plot_dat[[input$cost_analyses_plot_by_disorder_cost_type]]
@@ -1225,7 +1190,6 @@ function(input, output, session) {
     )
     
     title_cost_period <- case_when(
-      input$cost_analyses_plot_by_disorder_cost_period_id == "Year before index date" ~ "before",
       input$cost_analyses_plot_by_disorder_cost_period_id == "Year after index date" ~ "after",
       .default = "UNKNOWN COST PERIOD"
     )
@@ -1322,19 +1286,21 @@ function(input, output, session) {
   
   #### output$download_data_table ####
   
-  # Reactive valaue for selected data
+  # Reactive value for selected data
   datasetInput <- reactive({
     switch(
       input$download_data_select_data,
-      "cost_results" = cost_results,
-      "assess_relatives" = assess_relatives,
-      "patient_characteristics_relatives" = patient_characteristics_relatives
+      "cost_results" = cost_results_restricted,
+      "assess_relatives" = assess_relatives_restricted,
+      "patient_characteristics_relatives" = patient_characteristics_relatives_restricted
     )
+    
   })
   
   # Table of selected dataset
   output$download_data_table_preview <- render_gt({
     dataset_name <- input$download_data_select_data
+    
     tbl_title <- glue("Preview of '{dataset_name}' data")
     datasetInput() %>%
       gt_preview(top_n = 10, bottom_n = 10) %>%
