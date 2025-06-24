@@ -39,10 +39,10 @@ function(input, output, session) {
   #### output$main_info ####
   output$main_info <- renderUI({
     HTML("
-      <h3 style='text-align:center'>Societal costs for closest family relatives of patients with brain
+      <h3 style='text-align:center'>Societal costs for the closest family relatives of patients with brain
       disorders in Denmark: a population-based cohort study</h1>
       
-      <h4 style='text-align:center'>Version 0.2.3</h4>
+      <h4 style='text-align:center'>Version 0.2.4</h4>
     ")
   })
   
